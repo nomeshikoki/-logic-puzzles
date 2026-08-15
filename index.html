@@ -4545,7 +4545,12 @@ const GAMES = [{
   sizes: ["2つの容器", "2つの容器・難", "3つの容器"]
 }];
 const LEVELS = ["やさしい", "ふつう", "むずかしい"];
-const REPO = "nomeshikoki/-logic-puzzles";
+
+/* 難問の受け皿。GoogleスプレッドシートのウェブアプリURLを入れると、
+   ボタン1つで申請でき、難問ゾーンにも自動で反映されます。
+   空のままなら challenges.json を読み、申請はGitHubの投稿画面が開きます。 */
+const API = "https://script.google.com/macros/s/AKfycbzLsSpCLjk4-BdG-Ppa91kzisv9kTQphJ461Aj-uB7VgWTR-3HdOTfz4r-I3oQTjB4Hfg/exec";
+const REPO = "nomeshikoki/logic-puzzles";
 function urlBase() {
   try {
     return window.location.href.split("?")[0].split("#")[0];
@@ -4605,16 +4610,63 @@ function SharePanel({
 }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
+  const [note, setNote] = useState("");
   const [msg, setMsg] = useState("");
+  const [sent, setSent] = useState(false);
+  const [busy, setBusy] = useState(false);
   const url = shareURL(game.id, level, seed);
   const pid = `${game.code}-${level + 1}-${seed}`;
-  const body = `問題ID: ${pid}\nリンク: ${url}\n部門: ${game.title}\n難易度: ${LEVELS[level]}\n指定者: ${name || "（お名前）"}\nひとこと: `;
+  const body = `問題ID: ${pid}\nリンク: ${url}\n部門: ${game.title}\n難易度: ${LEVELS[level]}\n指定者: ${name || "（お名前）"}\nひとこと: ${note}`;
   const issue = `https://github.com/${REPO}/issues/new?title=${encodeURIComponent("難問登録 " + pid)}&body=${encodeURIComponent(body)}`;
   const copy = (text, label) => {
     try {
       navigator.clipboard.writeText(text).then(() => setMsg(label + "をコピーしました"), () => setMsg("コピーできませんでした。下の欄から選択してください"));
     } catch (e) {
       setMsg("コピーできませんでした。下の欄から選択してください");
+    }
+  };
+  const submit = () => {
+    if (!API) {
+      try {
+        window.open(issue, "_blank");
+      } catch (e) {
+        copy(body, "登録内容");
+      }
+      return;
+    }
+    setBusy(true);
+    setMsg("");
+    const payload = JSON.stringify({
+      p: game.id,
+      lv: level,
+      s: seed,
+      by: name.trim().slice(0, 20),
+      note: note.trim().slice(0, 60)
+    });
+    const done = () => {
+      setBusy(false);
+      setSent(true);
+    };
+    try {
+      fetch(API, {
+        method: "POST",
+        headers: {
+          "Content-Type": "text/plain;charset=utf-8"
+        },
+        body: payload
+      }).then(done).catch(() => {
+        try {
+          fetch(API, {
+            method: "POST",
+            mode: "no-cors",
+            body: payload
+          }).then(done).catch(done);
+        } catch (e) {
+          done();
+        }
+      });
+    } catch (e) {
+      done();
     }
   };
   return /*#__PURE__*/React.createElement("div", {
@@ -4653,44 +4705,57 @@ function SharePanel({
   }, /*#__PURE__*/React.createElement(Btn, {
     small: true,
     onClick: () => copy(url, "リンク")
-  }, "リンクをコピー")), /*#__PURE__*/React.createElement("div", {
-    className: "flex gap-2 flex-wrap items-center"
-  }, /*#__PURE__*/React.createElement("input", {
+  }, "リンクをコピー")), sent ? /*#__PURE__*/React.createElement("div", {
+    className: "text-sm p-3 border rounded-sm",
+    style: {
+      color: T.accent,
+      borderColor: T.accent,
+      background: T.panel
+    }
+  }, "申請しました。ありがとうございます。難問ゾーンへの反映まで少し時間がかかることがあります。") : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("input", {
     value: name,
     onChange: e => setName(e.target.value),
     placeholder: "お名前（表示されます）",
-    className: "text-sm p-2 border rounded-sm",
+    maxLength: 20,
+    className: "w-full text-sm p-2 border rounded-sm",
     style: {
       background: T.panel,
       borderColor: T.rule,
       color: T.ink,
-      flex: "1 1 160px",
-      minHeight: 40
+      minHeight: 42
     }
-  }), /*#__PURE__*/React.createElement(Btn, {
-    small: true,
+  }), /*#__PURE__*/React.createElement("input", {
+    value: note,
+    onChange: e => setNote(e.target.value),
+    placeholder: "ひとこと（任意）例：30分かかりました",
+    maxLength: 60,
+    className: "w-full text-sm p-2 border rounded-sm",
+    style: {
+      background: T.panel,
+      borderColor: T.rule,
+      color: T.ink,
+      minHeight: 42
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 flex-wrap items-center"
+  }, /*#__PURE__*/React.createElement(Btn, {
     tone: "solid",
-    onClick: () => {
-      try {
-        window.open(issue, "_blank");
-      } catch (e) {
-        copy(body, "登録内容");
-      }
-    }
-  }, "難問として申請する"), /*#__PURE__*/React.createElement(Btn, {
+    onClick: submit,
+    disabled: busy || !name.trim()
+  }, busy ? "送信中…" : "難問として申請する"), !API && /*#__PURE__*/React.createElement(Btn, {
     small: true,
     onClick: () => copy(body, "登録内容")
-  }, "内容をコピー")), msg && /*#__PURE__*/React.createElement("span", {
-    className: "text-xs",
-    style: {
-      color: T.accent
-    }
-  }, msg), /*#__PURE__*/React.createElement("span", {
+  }, "内容をコピー")), /*#__PURE__*/React.createElement("span", {
     className: "text-xs",
     style: {
       color: T.muted
     }
-  }, "申請はGitHubのページが開きます。アカウントがない場合は「内容をコピー」で管理者に送ってください。")));
+  }, API ? "お名前を入れて押すだけで申請できます。アカウント登録は不要です。" : "GitHubの投稿画面が開きます。アカウントがない場合は「内容をコピー」で管理者に送ってください。")), msg && /*#__PURE__*/React.createElement("span", {
+    className: "text-xs",
+    style: {
+      color: T.accent
+    }
+  }, msg)));
 }
 
 /* ---- 難問ゾーン ---- */
@@ -4709,7 +4774,7 @@ function Zone({
   useEffect(() => {
     let alive = true;
     try {
-      fetch("challenges.json", {
+      fetch(API ? API + (API.indexOf("?") >= 0 ? "&" : "?") + "list=1" : "challenges.json", {
         cache: "no-store"
       }).then(r => r.ok ? r.json() : Promise.reject(r.status)).then(j => {
         if (!alive) return;
