@@ -1900,6 +1900,10 @@ function Btn({
     background: T.accent,
     color: T.panel,
     borderColor: T.accent
+  } : tone === "warn" ? {
+    background: T.warn,
+    color: T.panel,
+    borderColor: T.warn
   } : tone === "quiet" ? {
     background: "transparent",
     color: T.muted,
@@ -1918,6 +1922,27 @@ function Btn({
       minHeight: small ? 38 : 46
     }
   }, children);
+}
+function ResetBtn({
+  onReset,
+  label = "最初から"
+}) {
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    if (!armed) return;
+    const t = setTimeout(() => setArmed(false), 5000);
+    return () => clearTimeout(t);
+  }, [armed]);
+  return /*#__PURE__*/React.createElement(Btn, {
+    small: true,
+    tone: armed ? "warn" : "plain",
+    onClick: () => {
+      if (armed) {
+        setArmed(false);
+        onReset();
+      } else setArmed(true);
+    }
+  }, armed ? `本当に${label}？` : label);
 }
 function Howto({
   children
@@ -2226,13 +2251,13 @@ function Nonogram({
   }, "× を打つ"), /*#__PURE__*/React.createElement(Btn, {
     small: true,
     onClick: undo
-  }, "1手もどす"), /*#__PURE__*/React.createElement(Btn, {
-    small: true,
-    onClick: () => {
+  }, "1手もどす"), /*#__PURE__*/React.createElement(ResetBtn, {
+    label: "全部消す",
+    onReset: () => {
       reset(range(N).map(() => Array(N).fill(0)));
       setWrong("idle");
     }
-  }, "全部消す")), /*#__PURE__*/React.createElement("div", {
+  })), /*#__PURE__*/React.createElement("div", {
     className: "inline-block select-none",
     style: {
       background: T.panel,
@@ -2432,13 +2457,13 @@ function Sudoku({
   }, "候補を自動で入れる"), /*#__PURE__*/React.createElement(Btn, {
     small: true,
     onClick: undo
-  }, "1手もどす"), /*#__PURE__*/React.createElement(Btn, {
-    small: true,
-    onClick: () => {
+  }, "1手もどす"), /*#__PURE__*/React.createElement(ResetBtn, {
+    label: "最初から",
+    onReset: () => {
       reset(init);
       setWrong("idle");
     }
-  }, "最初から")), /*#__PURE__*/React.createElement("div", {
+  })), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2 items-center flex-wrap"
   }, /*#__PURE__*/React.createElement(Btn, {
     tone: "solid",
@@ -2536,10 +2561,10 @@ function Lights({
   }, /*#__PURE__*/React.createElement(Btn, {
     small: true,
     onClick: undo
-  }, "1手もどす"), /*#__PURE__*/React.createElement(Btn, {
-    small: true,
-    onClick: () => reset(init)
-  }, "最初から"), /*#__PURE__*/React.createElement(Btn, {
+  }, "1手もどす"), /*#__PURE__*/React.createElement(ResetBtn, {
+    label: "最初から",
+    onReset: () => reset(init)
+  }), /*#__PURE__*/React.createElement(Btn, {
     small: true,
     tone: showPressed ? "solid" : "plain",
     onClick: () => setShowPressed(!showPressed)
@@ -2676,13 +2701,13 @@ function LogicGrid({
   }, "判定する"), /*#__PURE__*/React.createElement(Btn, {
     small: true,
     onClick: undo
-  }, "1手もどす"), /*#__PURE__*/React.createElement(Btn, {
-    small: true,
-    onClick: () => {
+  }, "1手もどす"), /*#__PURE__*/React.createElement(ResetBtn, {
+    label: "表を消す",
+    onReset: () => {
       reset(init);
       setWrong("idle");
     }
-  }, "表を消す"), /*#__PURE__*/React.createElement(Reveal, {
+  }), /*#__PURE__*/React.createElement(Reveal, {
     onReveal: () => reset(puz.names.map((nm, i) => cols.map((c, j) => {
       const isSeat = j < half;
       const hit = isSeat ? j === puz.solution.seat[i] - 1 : c === puz.solution.item[i];
@@ -2816,13 +2841,13 @@ function Skyscraper({
   }, "判定する"), /*#__PURE__*/React.createElement(Btn, {
     small: true,
     onClick: b.undo
-  }, "1手もどす"), /*#__PURE__*/React.createElement(Btn, {
-    small: true,
-    onClick: () => {
+  }, "1手もどす"), /*#__PURE__*/React.createElement(ResetBtn, {
+    label: "最初から",
+    onReset: () => {
       b.reset(b.blank);
       setWrong("idle");
     }
-  }, "最初から"), /*#__PURE__*/React.createElement(Reveal, {
+  }), /*#__PURE__*/React.createElement(Reveal, {
     onReveal: () => b.setVals(puz.grid)
   })), solved ? /*#__PURE__*/React.createElement(Done, {
     text: "正解。すべての見え方が一致しました。"
@@ -2965,13 +2990,13 @@ function Cryptarithm({
   }, "判定する"), /*#__PURE__*/React.createElement(Btn, {
     small: true,
     onClick: undo
-  }, "1手もどす"), /*#__PURE__*/React.createElement(Btn, {
-    small: true,
-    onClick: () => {
+  }, "1手もどす"), /*#__PURE__*/React.createElement(ResetBtn, {
+    label: "全部外す",
+    onReset: () => {
       reset({});
       setWrong("idle");
     }
-  }, "全部外す"), /*#__PURE__*/React.createElement(Reveal, {
+  }), /*#__PURE__*/React.createElement(Reveal, {
     onReveal: () => reset({
       ...puz.solution
     })
@@ -3049,13 +3074,13 @@ function MineFind({
   }, "判定する"), /*#__PURE__*/React.createElement(Btn, {
     small: true,
     onClick: undo
-  }, "1手もどす"), /*#__PURE__*/React.createElement(Btn, {
-    small: true,
-    onClick: () => {
+  }, "1手もどす"), /*#__PURE__*/React.createElement(ResetBtn, {
+    label: "最初から",
+    onReset: () => {
       reset(init);
       setWrong("idle");
     }
-  }, "最初から"), /*#__PURE__*/React.createElement(Reveal, {
+  }), /*#__PURE__*/React.createElement(Reveal, {
     onReveal: () => reset(range(n).map(r => range(n).map(c => puz.shown[r][c] !== null ? 0 : puz.mine[r][c] ? 1 : 2)))
   })), solved ? /*#__PURE__*/React.createElement(Done, {
     text: `正解。爆弾${total}個をすべて特定しました。`
@@ -3135,13 +3160,13 @@ function BinaryPuzzle({
   }, "判定する"), /*#__PURE__*/React.createElement(Btn, {
     small: true,
     onClick: undo
-  }, "1手もどす"), /*#__PURE__*/React.createElement(Btn, {
-    small: true,
-    onClick: () => {
+  }, "1手もどす"), /*#__PURE__*/React.createElement(ResetBtn, {
+    label: "最初から",
+    onReset: () => {
       reset(init);
       setWrong("idle");
     }
-  }, "最初から"), /*#__PURE__*/React.createElement(Reveal, {
+  }), /*#__PURE__*/React.createElement(Reveal, {
     onReveal: () => reset(puz.solution.map(r => r.slice()))
   })), solved ? /*#__PURE__*/React.createElement(Done, {
     text: "正解。3つのルールをすべて満たしました。"
@@ -3210,13 +3235,13 @@ function Knights({
   }, "判定する"), /*#__PURE__*/React.createElement(Btn, {
     small: true,
     onClick: undo
-  }, "1手もどす"), /*#__PURE__*/React.createElement(Btn, {
-    small: true,
-    onClick: () => {
+  }, "1手もどす"), /*#__PURE__*/React.createElement(ResetBtn, {
+    label: "最初から",
+    onReset: () => {
       reset(init);
       setWrong("idle");
     }
-  }, "最初から"), /*#__PURE__*/React.createElement(Reveal, {
+  }), /*#__PURE__*/React.createElement(Reveal, {
     onReveal: () => reset(puz.solution.map(s => s ? 1 : 2))
   })), solved ? /*#__PURE__*/React.createElement(Done, {
     text: "正解。全員の正体が確定しました。"
@@ -3360,14 +3385,14 @@ function Dominosa({
   }, "判定する"), /*#__PURE__*/React.createElement(Btn, {
     small: true,
     onClick: undo
-  }, "1手もどす"), /*#__PURE__*/React.createElement(Btn, {
-    small: true,
-    onClick: () => {
+  }, "1手もどす"), /*#__PURE__*/React.createElement(ResetBtn, {
+    label: "最初から",
+    onReset: () => {
       reset(init);
       setSel(-1);
       setWrong("idle");
     }
-  }, "最初から"), /*#__PURE__*/React.createElement(Reveal, {
+  }), /*#__PURE__*/React.createElement(Reveal, {
     onReveal: () => {
       const p = Array(R * C).fill(-1);
       puz.solution.forEach(([[r1, c1], [r2, c2]]) => {
@@ -3479,13 +3504,13 @@ function KenKen({
   }, "判定する"), /*#__PURE__*/React.createElement(Btn, {
     small: true,
     onClick: b.undo
-  }, "1手もどす"), /*#__PURE__*/React.createElement(Btn, {
-    small: true,
-    onClick: () => {
+  }, "1手もどす"), /*#__PURE__*/React.createElement(ResetBtn, {
+    label: "最初から",
+    onReset: () => {
       b.reset(b.blank);
       setWrong("idle");
     }
-  }, "最初から"), /*#__PURE__*/React.createElement(Reveal, {
+  }), /*#__PURE__*/React.createElement(Reveal, {
     onReveal: () => b.setVals(puz.grid)
   })), solved ? /*#__PURE__*/React.createElement(Done, {
     text: "正解。すべてのケージの計算が合いました。"
@@ -3610,13 +3635,13 @@ function Futoshiki({
   }, "判定する"), /*#__PURE__*/React.createElement(Btn, {
     small: true,
     onClick: b.undo
-  }, "1手もどす"), /*#__PURE__*/React.createElement(Btn, {
-    small: true,
-    onClick: () => {
+  }, "1手もどす"), /*#__PURE__*/React.createElement(ResetBtn, {
+    label: "最初から",
+    onReset: () => {
       b.reset(b.blank);
       setWrong("idle");
     }
-  }, "最初から"), /*#__PURE__*/React.createElement(Reveal, {
+  }), /*#__PURE__*/React.createElement(Reveal, {
     onReveal: () => b.setVals(puz.grid)
   })), solved ? /*#__PURE__*/React.createElement(Done, {
     text: "正解。すべての大小関係が成り立ちました。"
@@ -3708,13 +3733,13 @@ function Akari({
   }, "判定する"), /*#__PURE__*/React.createElement(Btn, {
     small: true,
     onClick: undo
-  }, "1手もどす"), /*#__PURE__*/React.createElement(Btn, {
-    small: true,
-    onClick: () => {
+  }, "1手もどす"), /*#__PURE__*/React.createElement(ResetBtn, {
+    label: "最初から",
+    onReset: () => {
       reset(init);
       setWrong("idle");
     }
-  }, "最初から"), /*#__PURE__*/React.createElement(Reveal, {
+  }), /*#__PURE__*/React.createElement(Reveal, {
     onReveal: () => reset(puz.sol.slice())
   })), solved ? /*#__PURE__*/React.createElement(Done, {
     text: "正解。すべてのマスが照らされました。"
@@ -3821,13 +3846,13 @@ function Tents({
   }, "判定する"), /*#__PURE__*/React.createElement(Btn, {
     small: true,
     onClick: undo
-  }, "1手もどす"), /*#__PURE__*/React.createElement(Btn, {
-    small: true,
-    onClick: () => {
+  }, "1手もどす"), /*#__PURE__*/React.createElement(ResetBtn, {
+    label: "最初から",
+    onReset: () => {
       reset(init);
       setWrong("idle");
     }
-  }, "最初から"), /*#__PURE__*/React.createElement(Reveal, {
+  }), /*#__PURE__*/React.createElement(Reveal, {
     onReveal: () => reset(range(n).map(r => range(n).map(c => puz.tent[r][c] ? 1 : 0)))
   })), solved ? /*#__PURE__*/React.createElement(Done, {
     text: "正解。すべての木にテントが対応しました。"
@@ -3953,14 +3978,14 @@ function Shikaku({
   }, "判定する"), /*#__PURE__*/React.createElement(Btn, {
     small: true,
     onClick: undo
-  }, "1手もどす"), /*#__PURE__*/React.createElement(Btn, {
-    small: true,
-    onClick: () => {
+  }, "1手もどす"), /*#__PURE__*/React.createElement(ResetBtn, {
+    label: "最初から",
+    onReset: () => {
       reset([]);
       setSel(null);
       setWrong("idle");
     }
-  }, "最初から"), /*#__PURE__*/React.createElement(Reveal, {
+  }), /*#__PURE__*/React.createElement(Reveal, {
     onReveal: () => {
       reset(puz.rects.map(x => x.slice()));
       setSel(null);
@@ -4084,13 +4109,13 @@ function Circuit({
   }, "判定する"), /*#__PURE__*/React.createElement(Btn, {
     small: true,
     onClick: undo
-  }, "1手もどす"), /*#__PURE__*/React.createElement(Btn, {
-    small: true,
-    onClick: () => {
+  }, "1手もどす"), /*#__PURE__*/React.createElement(ResetBtn, {
+    label: "最初から",
+    onReset: () => {
       reset(init);
       setWrong("idle");
     }
-  }, "最初から"), /*#__PURE__*/React.createElement(Reveal, {
+  }), /*#__PURE__*/React.createElement(Reveal, {
     onReveal: () => reset(puz.answer.slice())
   })), solved ? /*#__PURE__*/React.createElement(Done, {
     text: "正解。入力がすべて確定しました。"
@@ -4190,10 +4215,10 @@ function Jugs({
   }, /*#__PURE__*/React.createElement(Btn, {
     small: true,
     onClick: undo
-  }, "1手もどす"), /*#__PURE__*/React.createElement(Btn, {
-    small: true,
-    onClick: () => reset(init)
-  }, "最初から")), solved && /*#__PURE__*/React.createElement(Done, {
+  }, "1手もどす"), /*#__PURE__*/React.createElement(ResetBtn, {
+    label: "最初から",
+    onReset: () => reset(init)
+  })), solved && /*#__PURE__*/React.createElement(Done, {
     text: `${puz.target}Lができました。${moves}手（最短${puz.min}手）`
   }));
 }
@@ -4361,13 +4386,13 @@ function Hanoi({
       undo();
       setSel(-1);
     }
-  }, "1手もどす"), /*#__PURE__*/React.createElement(Btn, {
-    small: true,
-    onClick: () => {
+  }, "1手もどす"), /*#__PURE__*/React.createElement(ResetBtn, {
+    label: "最初から",
+    onReset: () => {
       reset(init);
       setSel(-1);
     }
-  }, "最初から")), solved && /*#__PURE__*/React.createElement(Done, {
+  })), solved && /*#__PURE__*/React.createElement(Done, {
     text: moves === min ? `最短の${min}手で完成。文句なしです。` : `完成。${moves}手（最短${min}手）`
   }));
 }
