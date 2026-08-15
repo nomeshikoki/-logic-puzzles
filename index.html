@@ -13,13 +13,17 @@
 <meta name="twitter:card" content="summary">
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20fill%3D%22%23E7EAE3%22%2F%3E%3Cg%20fill%3D%22none%22%20stroke%3D%22%232F6B4F%22%20stroke-width%3D%224%22%3E%3Crect%20x%3D%2210%22%20y%3D%2210%22%20width%3D%2244%22%20height%3D%2244%22%2F%3E%3Cpath%20d%3D%22M10%2032h44M32%2010v44%22%2F%3E%3C%2Fg%3E%3Crect%20x%3D%2214%22%20y%3D%2214%22%20width%3D%2214%22%20height%3D%2214%22%20fill%3D%22%231B2320%22%2F%3E%3Crect%20x%3D%2236%22%20y%3D%2236%22%20width%3D%2214%22%20height%3D%2214%22%20fill%3D%22%231B2320%22%2F%3E%3C%2Fsvg%3E">
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20fill%3D%22%23E7EAE3%22%2F%3E%3Cg%20fill%3D%22none%22%20stroke%3D%22%232F6B4F%22%20stroke-width%3D%224%22%3E%3Crect%20x%3D%2210%22%20y%3D%2210%22%20width%3D%2244%22%20height%3D%2244%22%2F%3E%3Cpath%20d%3D%22M10%2032h44M32%2010v44%22%2F%3E%3C%2Fg%3E%3Crect%20x%3D%2214%22%20y%3D%2214%22%20width%3D%2214%22%20height%3D%2214%22%20fill%3D%22%231B2320%22%2F%3E%3Crect%20x%3D%2236%22%20y%3D%2236%22%20width%3D%2214%22%20height%3D%2214%22%20fill%3D%22%231B2320%22%2F%3E%3C%2Fsvg%3E">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="論理パズル集">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;
  -webkit-font-smoothing:antialiased;background:#E7EAE3}
 button{font-family:inherit;cursor:pointer;padding:0;background:none;border:none;color:inherit}
-textarea{font-family:inherit;font-size:inherit;color:inherit;display:block}
+textarea,input{font-family:inherit;font-size:inherit;color:inherit;display:block}
+input{border-style:solid}
 ol{margin:0;padding:0;list-style:none}
 p{margin:0}
 h1,h2{margin:0;font-weight:500}
@@ -39,7 +43,7 @@ h1,h2{margin:0;font-weight:500}
 .py-1{padding-top:.25rem;padding-bottom:.25rem}.py-2{padding-top:.5rem;padding-bottom:.5rem}
 .py-6{padding-top:1.5rem;padding-bottom:1.5rem}
 .pb-1{padding-bottom:.25rem}.pb-2{padding-bottom:.5rem}.pb-3{padding-bottom:.75rem}
-.pr-1{padding-right:.25rem}.pr-2{padding-right:.5rem}.pt-3{padding-top:.75rem}.pt-4{padding-top:1rem}
+.pr-1{padding-right:.25rem}.pr-2{padding-right:.5rem}.pt-2{padding-top:.5rem}.pt-3{padding-top:.75rem}.pt-4{padding-top:1rem}
 .mb-2{margin-bottom:.5rem}.mt-2{margin-top:.5rem}.mt-0\.5{margin-top:.125rem}
 .mx-auto{margin-left:auto;margin-right:auto}
 .w-full{width:100%}.w-8{width:2rem}.max-w-full{max-width:100%}.max-w-2xl{max-width:42rem}
@@ -388,10 +392,24 @@ const T = {
   warn: "#8C4A6B",
   sel: "#DCE6DE"
 };
+
+/* ---- 種から同じ問題を作り直すための乱数 ---- */
+let _rng = null;
+const rnd = () => _rng ? _rng() : Math["random"]();
+function seedRNG(seed) {
+  let a = seed >>> 0 || 1;
+  _rng = function () {
+    a = a + 0x6d2b79f5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+const newSeed = () => Math.floor(Math["random"]() * 1000000000) + 1;
 const shuffle = a => {
   const b = a.slice();
   for (let i = b.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = Math.floor(rnd() * (i + 1));
     [b[i], b[j]] = [b[j], b[i]];
   }
   return b;
@@ -536,8 +554,8 @@ function countNonogram(rowClues, colClues, n, cap = 2, nodeCap = 300000) {
 function genNonogram(n) {
   let last = null;
   for (let t = 0; t < 500; t++) {
-    const p = 0.45 + Math.random() * 0.2;
-    const g = range(n).map(() => range(n).map(() => Math.random() < p ? 1 : 0));
+    const p = 0.45 + rnd() * 0.2;
+    const g = range(n).map(() => range(n).map(() => rnd() < p ? 1 : 0));
     const ones = g.flat().reduce((a, b) => a + b, 0);
     if (ones < n * n * 0.35 || ones > n * n * 0.7) continue;
     const rc = g.map(lineClue);
@@ -676,7 +694,7 @@ function genLogic(names, items, strict) {
     seat: sp,
     item: ip
   });
-  const sol = all[Math.floor(Math.random() * all.length)];
+  const sol = all[Math.floor(rnd() * all.length)];
   const seatOf = (a, nm) => a.seat[names.indexOf(nm)];
   const itemOf = (a, nm) => a.item[names.indexOf(nm)];
   const ownerOf = (a, it) => names[a.item.indexOf(it)];
@@ -920,10 +938,10 @@ function solveCrypt(words, cap = 2) {
 function genCrypt(maxL, big) {
   const L = "ABCDEFGHIJ".split("");
   for (let t = 0; t < 20000; t++) {
-    const dA = big ? 3 : 2 + Math.floor(Math.random() * 2);
-    const dB = big ? 3 : 2 + Math.floor(Math.random() * 2);
-    const a = Math.floor(Math.random() * (10 ** dA - 10 ** (dA - 1))) + 10 ** (dA - 1);
-    const b = Math.floor(Math.random() * (10 ** dB - 10 ** (dB - 1))) + 10 ** (dB - 1);
+    const dA = big ? 3 : 2 + Math.floor(rnd() * 2);
+    const dB = big ? 3 : 2 + Math.floor(rnd() * 2);
+    const a = Math.floor(rnd() * (10 ** dA - 10 ** (dA - 1))) + 10 ** (dA - 1);
+    const b = Math.floor(rnd() * (10 ** dB - 10 ** (dB - 1))) + 10 ** (dB - 1);
     const s = a + b;
     const digits = [...new Set(("" + a + b + s).split(""))].map(Number);
     if (digits.length > maxL || digits.length < maxL - 1) continue;
@@ -1115,7 +1133,7 @@ function genBinary(n, givens) {
 function genKnights(n) {
   const P = range(n).map(i => "ABCDEF"[i]);
   for (let t = 0; t < 400; t++) {
-    const sol = range(n).map(() => Math.random() < 0.5);
+    const sol = range(n).map(() => rnd() < 0.5);
     const kinds = [];
     for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) if (i !== j) {
       kinds.push({
@@ -1246,7 +1264,7 @@ function genDom(maxN) {
     const pp = shuffle(pairs);
     const grid = range(R).map(() => Array(C).fill(0));
     doms.forEach(([p1, p2], i) => {
-      const [a, b] = Math.random() < 0.5 ? pp[i] : [pp[i][1], pp[i][0]];
+      const [a, b] = rnd() < 0.5 ? pp[i] : [pp[i][1], pp[i][0]];
       grid[p1[0]][p1[1]] = a;
       grid[p2[0]][p2[1]] = b;
     });
@@ -1308,7 +1326,7 @@ function genKen(n, maxSingles) {
       const r = Math.floor(i / n),
         c = i % n;
       if (id[r][c] !== -1) continue;
-      const size = Math.random() < 0.55 ? 2 : Math.random() < 0.7 ? 3 : 1;
+      const size = rnd() < 0.55 ? 2 : rnd() < 0.7 ? 3 : 1;
       const cells = [[r, c]];
       id[r][c] = cages.length;
       while (cells.length < size) {
@@ -1319,7 +1337,7 @@ function genKen(n, maxSingles) {
           if (a >= 0 && a < n && b >= 0 && b < n && id[a][b] === -1) opts.push([a, b]);
         }
         if (!opts.length) break;
-        const pick = opts[Math.floor(Math.random() * opts.length)];
+        const pick = opts[Math.floor(rnd() * opts.length)];
         id[pick[0]][pick[1]] = cages.length;
         cells.push(pick);
       }
@@ -1334,10 +1352,10 @@ function genKen(n, maxSingles) {
           lo = Math.min(a, b);
         const cand = ["+", "×", "−"];
         if (hi % lo === 0 && hi !== lo) cand.push("÷", "÷");
-        op = cand[Math.floor(Math.random() * cand.length)];
+        op = cand[Math.floor(rnd() * cand.length)];
         target = op === "+" ? a + b : op === "×" ? a * b : op === "−" ? hi - lo : hi / lo;
       } else {
-        op = Math.random() < 0.7 ? "+" : "×";
+        op = rnd() < 0.7 ? "+" : "×";
         target = op === "+" ? vals.reduce((x, y) => x + y, 0) : vals.reduce((x, y) => x * y, 1);
       }
       cages.push({
@@ -1517,7 +1535,7 @@ function akariSolve(n, black, num, M, cap = 2, want = false) {
 }
 function genAkari(n, ratio, keepNums) {
   for (let t = 0; t < 200; t++) {
-    const black = range(n).map(() => range(n).map(() => Math.random() < ratio));
+    const black = range(n).map(() => range(n).map(() => rnd() < ratio));
     const num = range(n).map(() => Array(n).fill(-1));
     const M = akariModel(n, black);
     if (M.cells.length < n * n * 0.6) continue;
@@ -1734,7 +1752,7 @@ function genShikaku(R, C, maxArea) {
     if (rects.filter(([,, h, w]) => h * w === 1).length > 3) continue;
     const num = range(R).map(() => Array(C).fill(0));
     rects.forEach(([r, c, h, w]) => {
-      num[r + Math.floor(Math.random() * h)][c + Math.floor(Math.random() * w)] = h * w;
+      num[r + Math.floor(rnd() * h)][c + Math.floor(rnd() * w)] = h * w;
     });
     if (shikakuSolve(R, C, num) !== 1) continue;
     return {
@@ -1761,10 +1779,10 @@ function genCircuit(k, g) {
     const nodes = [];
     for (let i = 0; i < g; i++) {
       const pool = IN.concat(nodes.map((_, j) => "G" + (j + 1)));
-      const op = Object.keys(OPS)[Math.floor(Math.random() * 5)];
-      const a = pool[Math.floor(Math.random() * pool.length)];
-      let b = pool[Math.floor(Math.random() * pool.length)];
-      if (a === b) b = pool[Math.floor(Math.random() * pool.length)];
+      const op = Object.keys(OPS)[Math.floor(rnd() * 5)];
+      const a = pool[Math.floor(rnd() * pool.length)];
+      let b = pool[Math.floor(rnd() * pool.length)];
+      if (a === b) b = pool[Math.floor(rnd() * pool.length)];
       if (a === b) break;
       nodes.push({
         name: "G" + (i + 1),
@@ -1780,7 +1798,7 @@ function genCircuit(k, g) {
       nodes.forEach(nd => v[nd.name] = OPS[nd.op](v[nd.a], v[nd.b]));
       return v;
     };
-    const ans = range(k).map(() => Math.random() < 0.5 ? 1 : 0);
+    const ans = range(k).map(() => rnd() < 0.5 ? 1 : 0);
     const target = evalAll(ans);
     const uniq = rv => {
       let c = 0;
@@ -1811,7 +1829,7 @@ function genCircuit(k, g) {
 const JUGSETS = [[[3, 5], 4], [[5, 8], 6], [[4, 9], 6], [[7, 9], 5], [[3, 7], 5], [[6, 10, 15], 8], [[5, 12, 17], 9], [[4, 11, 13], 7], [[3, 8, 13], 6]];
 function genJugs(level) {
   for (let t = 0; t < 300; t++) {
-    const [caps, target] = JUGSETS[Math.floor(Math.random() * JUGSETS.length)];
+    const [caps, target] = JUGSETS[Math.floor(rnd() * JUGSETS.length)];
     if (level === 0 && caps.length > 2) continue;
     if (level === 2 && caps.length < 3) continue;
     const key = s => s.join(",");
@@ -2575,7 +2593,7 @@ function LogicGrid({
       d = pick(i, half, cols.length);
     return s === puz.solution.seat[i] - 1 && cols[d] === puz.solution.item[i];
   });
-  const cw = n === 5 ? 40 : 46;
+  const cw = n === 5 ? 34 : 42;
   return /*#__PURE__*/React.createElement("div", {
     className: "flex flex-col gap-3 items-start w-full"
   }, /*#__PURE__*/React.createElement(Howto, null, n, "人が左から", n, "席に一列で座り、それぞれ違う飲み物を持っています。下のボタンで「○」か「×」を選び、表のマスをタップすると その印が1タップで入ります。同じ印をもう一度タップすると消えます。手がかりから×を潰していき、 1行・1列に○が1つずつ残るように埋めてください。"), /*#__PURE__*/React.createElement("div", {
@@ -2702,18 +2720,33 @@ function Skyscraper({
     return false;
   };
   const CS = n >= 6 ? 44 : 50;
-  const clueCell = v => /*#__PURE__*/React.createElement("div", {
+  const SIDE = 26;
+  const EDGE = 2;
+  const clueStyle = {
+    fontSize: 13,
+    color: T.indigo
+  };
+  const sideClue = (v, key) => /*#__PURE__*/React.createElement("div", {
+    key: key,
     className: "flex items-center justify-center font-mono",
     style: {
-      width: 28,
-      height: CS,
-      fontSize: 13,
-      color: T.indigo
+      ...clueStyle,
+      width: SIDE,
+      height: CS
+    }
+  }, v || "");
+  const topClue = (v, key) => /*#__PURE__*/React.createElement("div", {
+    key: key,
+    className: "flex items-center justify-center font-mono",
+    style: {
+      ...clueStyle,
+      width: CS,
+      height: 26
     }
   }, v || "");
   return /*#__PURE__*/React.createElement("div", {
     className: "flex flex-col gap-3 items-start"
-  }, /*#__PURE__*/React.createElement(Howto, null, "各マスに1〜", n, "のビルの高さを入れます。たて・よこに同じ高さは入りません。外側の数字は、その向きから見たときに見えるビルの本数です （手前が高いと後ろは隠れます）。たとえば", n, "なら手前から順に1,2,…と並ぶ1通りだけ、1なら手前がいちばん高い", n, "です。 「候補メモ」をオンにすると、マスに小さい数字で可能性を書き込めます。"), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement(Howto, null, "各マスに1〜", n, "のビルの高さを入れます。たて・よこに同じ高さは入りません。外側の数字は、その向きから見たときに見えるビルの本数です （手前が高いと後ろは隠れます）。たとえば", n, "なら手前から順に1,2,…と並ぶ1通りだけ、1なら手前がいちばん高い", n, "です。 数字のない辺にヒントはありません。「候補メモ」をオンにすると、マスに小さい数字で可能性を書き込めます。"), /*#__PURE__*/React.createElement("div", {
     className: "overflow-x-auto max-w-full"
   }, /*#__PURE__*/React.createElement("div", {
     className: "inline-block",
@@ -2723,18 +2756,21 @@ function Skyscraper({
     }
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex"
-  }, clueCell(0), puz.clues.top.map((v, i) => /*#__PURE__*/React.createElement("div", {
-    key: i
-  }, clueCell(v))), clueCell(0)), vals.map((row, r) => /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: SIDE + EDGE,
+      height: 26
+    }
+  }), puz.clues.top.map((v, i) => topClue(v, i))), vals.map((row, r) => /*#__PURE__*/React.createElement("div", {
     className: "flex",
     key: r
-  }, clueCell(puz.clues.left[r]), /*#__PURE__*/React.createElement("div", {
+  }, sideClue(puz.clues.left[r], "l"), /*#__PURE__*/React.createElement("div", {
     className: "flex",
     style: {
-      borderLeft: `2px solid ${T.ink}`,
-      borderRight: `2px solid ${T.ink}`,
-      borderTop: r === 0 ? `2px solid ${T.ink}` : "none",
-      borderBottom: r === n - 1 ? `2px solid ${T.ink}` : "none"
+      borderLeft: `${EDGE}px solid ${T.ink}`,
+      borderRight: `${EDGE}px solid ${T.ink}`,
+      borderTop: r === 0 ? `${EDGE}px solid ${T.ink}` : "none",
+      borderBottom: r === n - 1 ? `${EDGE}px solid ${T.ink}` : "none"
     }
   }, row.map((v, c) => {
     const isSel = sel[0] === r && sel[1] === c;
@@ -2755,11 +2791,14 @@ function Skyscraper({
     }, v || /*#__PURE__*/React.createElement(NoteCell, {
       notes: notes[r * n + c]
     }));
-  })), clueCell(puz.clues.right[r]))), /*#__PURE__*/React.createElement("div", {
+  })), sideClue(puz.clues.right[r], "r"))), /*#__PURE__*/React.createElement("div", {
     className: "flex"
-  }, clueCell(0), puz.clues.bottom.map((v, i) => /*#__PURE__*/React.createElement("div", {
-    key: i
-  }, clueCell(v))), clueCell(0)))), /*#__PURE__*/React.createElement(NumPad, {
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: SIDE + EDGE,
+      height: 26
+    }
+  }), puz.clues.bottom.map((v, i) => topClue(v, i))))), /*#__PURE__*/React.createElement(NumPad, {
     max: n,
     onInput: num => {
       setWrong("idle");
@@ -3495,8 +3534,8 @@ function Futoshiki({
     }
     return false;
   };
-  const CS = n >= 6 ? 46 : 52;
-  const GAP = 18;
+  const CS = n >= 6 ? 40 : 50;
+  const GAP = n >= 6 ? 15 : 18;
   return /*#__PURE__*/React.createElement("div", {
     className: "flex flex-col gap-3 items-start"
   }, /*#__PURE__*/React.createElement(Howto, null, "たて・よこに1〜", n, "を1つずつ入れます。マスの間の記号は大小関係で、開いている側が大きい数です（＜なら右が大きい、∧なら下が大きい）。 記号のないところに制限はありません。まず「1が入れるのはどこか」「", n, "が入れるのはどこか」から絞るのがコツで、 絞り込みの途中経過は「候補メモ」に残せます。"), /*#__PURE__*/React.createElement("div", {
@@ -3770,7 +3809,11 @@ function Tents({
       fontSize: 13,
       color: cc[c] === puz.colC[c] ? T.rule : T.indigo
     }
-  }, puz.colC[c]))))), /*#__PURE__*/React.createElement("div", {
+  }, puz.colC[c])), /*#__PURE__*/React.createElement("span", {
+    style: {
+      width: 26
+    }
+  })))), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2 items-center flex-wrap"
   }, /*#__PURE__*/React.createElement(Btn, {
     tone: "solid",
@@ -4185,7 +4228,7 @@ function genHanoiStart(n, scrambled) {
   if (!scrambled) return Array(n).fill(0);
   const floor = Math.pow(2, n - 1);
   for (let t = 0; t < 300; t++) {
-    const st = range(n).map(() => Math.floor(Math.random() * 3));
+    const st = range(n).map(() => Math.floor(rnd() * 3));
     if (st.every(v => v === 2)) continue;
     if (hanoiMin(n, st) >= floor) return st;
   }
@@ -4477,11 +4520,278 @@ const GAMES = [{
   sizes: ["2つの容器", "2つの容器・難", "3つの容器"]
 }];
 const LEVELS = ["やさしい", "ふつう", "むずかしい"];
+const REPO = "nomeshikoki/-logic-puzzles";
+function urlBase() {
+  try {
+    return window.location.href.split("?")[0].split("#")[0];
+  } catch (e) {
+    return "";
+  }
+}
+function shareURL(id, level, seed) {
+  return `${urlBase()}?p=${id}&lv=${level}&s=${seed}`;
+}
+function readURL() {
+  try {
+    const q = new URLSearchParams(window.location.search);
+    const p = q.get("p");
+    if (!p) return null;
+    if (p === "zone") return {
+      view: "zone",
+      level: 0,
+      seed: 1
+    };
+    if (!GAMES.some(g => g.id === p)) return null;
+    const lv = Math.min(2, Math.max(0, Number(q.get("lv")) || 0));
+    return {
+      view: p,
+      level: lv,
+      seed: Number(q.get("s")) || 1
+    };
+  } catch (e) {
+    return null;
+  }
+}
+function syncURL(view, level, seed) {
+  try {
+    const u = view === "home" ? urlBase() : view === "zone" ? `${urlBase()}?p=zone` : shareURL(view, level, seed);
+    window.history.replaceState(null, "", u);
+  } catch (e) {}
+}
+
+/* ---- 種を固定してからパズルを作る ---- */
+function GameHost({
+  game,
+  level,
+  seed
+}) {
+  seedRNG(seed);
+  const C = game.comp;
+  return /*#__PURE__*/React.createElement(C, {
+    level: level
+  });
+}
+
+/* ---- 共有と難問登録 ---- */
+function SharePanel({
+  game,
+  level,
+  seed
+}) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [msg, setMsg] = useState("");
+  const url = shareURL(game.id, level, seed);
+  const pid = `${game.code}-${level + 1}-${seed}`;
+  const body = `問題ID: ${pid}\nリンク: ${url}\n部門: ${game.title}\n難易度: ${LEVELS[level]}\n指定者: ${name || "（お名前）"}\nひとこと: `;
+  const issue = `https://github.com/${REPO}/issues/new?title=${encodeURIComponent("難問登録 " + pid)}&body=${encodeURIComponent(body)}`;
+  const copy = (text, label) => {
+    try {
+      navigator.clipboard.writeText(text).then(() => setMsg(label + "をコピーしました"), () => setMsg("コピーできませんでした。下の欄から選択してください"));
+    } catch (e) {
+      setMsg("コピーできませんでした。下の欄から選択してください");
+    }
+  };
+  return /*#__PURE__*/React.createElement("div", {
+    className: "w-full flex flex-col gap-2 pt-3 border-t",
+    style: {
+      borderColor: T.rule
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "text-xs underline",
+    style: {
+      color: T.muted
+    },
+    onClick: () => setOpen(!open)
+  }, "この問題を共有・難問に登録 ", open ? "を閉じる" : "を開く"), open && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("p", {
+    className: "text-xs leading-relaxed",
+    style: {
+      color: T.muted
+    }
+  }, "いま解いている問題には固有の番号が付いています。このリンクを開けば、誰でもまったく同じ問題を解けます。 手強かった問題は、ぜひ難問ゾーンに登録してください。"), /*#__PURE__*/React.createElement("div", {
+    className: "font-mono text-xs",
+    style: {
+      color: T.accent
+    }
+  }, "問題ID ", pid), /*#__PURE__*/React.createElement("input", {
+    readOnly: true,
+    value: url,
+    onFocus: e => e.target.select(),
+    className: "w-full text-xs p-2 border rounded-sm font-mono",
+    style: {
+      background: T.panel,
+      borderColor: T.rule,
+      color: T.ink
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 flex-wrap items-center"
+  }, /*#__PURE__*/React.createElement(Btn, {
+    small: true,
+    onClick: () => copy(url, "リンク")
+  }, "リンクをコピー")), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 flex-wrap items-center"
+  }, /*#__PURE__*/React.createElement("input", {
+    value: name,
+    onChange: e => setName(e.target.value),
+    placeholder: "お名前（表示されます）",
+    className: "text-sm p-2 border rounded-sm",
+    style: {
+      background: T.panel,
+      borderColor: T.rule,
+      color: T.ink,
+      flex: "1 1 160px",
+      minHeight: 40
+    }
+  }), /*#__PURE__*/React.createElement(Btn, {
+    small: true,
+    tone: "solid",
+    onClick: () => {
+      try {
+        window.open(issue, "_blank");
+      } catch (e) {
+        copy(body, "登録内容");
+      }
+    }
+  }, "難問として申請する"), /*#__PURE__*/React.createElement(Btn, {
+    small: true,
+    onClick: () => copy(body, "登録内容")
+  }, "内容をコピー")), msg && /*#__PURE__*/React.createElement("span", {
+    className: "text-xs",
+    style: {
+      color: T.accent
+    }
+  }, msg), /*#__PURE__*/React.createElement("span", {
+    className: "text-xs",
+    style: {
+      color: T.muted
+    }
+  }, "申請はGitHubのページが開きます。アカウントがない場合は「内容をコピー」で管理者に送ってください。")));
+}
+
+/* ---- 難問ゾーン ---- */
+const offlineNow = () => {
+  try {
+    return navigator.onLine === false;
+  } catch (e) {
+    return false;
+  }
+};
+function Zone({
+  onOpen
+}) {
+  const [items, setItems] = useState(null);
+  const [err, setErr] = useState("");
+  useEffect(() => {
+    let alive = true;
+    try {
+      fetch("challenges.json", {
+        cache: "no-store"
+      }).then(r => r.ok ? r.json() : Promise.reject(r.status)).then(j => {
+        if (!alive) return;
+        const list = Array.isArray(j) ? j : j.items || [];
+        setItems(list.filter(x => GAMES.some(g => g.id === x.p)));
+      }).catch(() => alive && setErr(offlineNow() ? "offline" : "load"));
+    } catch (e) {
+      setErr(offlineNow() ? "offline" : "load");
+    }
+    return () => {
+      alive = false;
+    };
+  }, []);
+  return /*#__PURE__*/React.createElement("div", {
+    className: "flex flex-col gap-4"
+  }, /*#__PURE__*/React.createElement("p", {
+    className: "text-sm leading-relaxed",
+    style: {
+      color: T.muted
+    }
+  }, "みんなが「これは手強い」と指定した問題を集めた場所です。リンクを開けば、指定された人が解いたのとまったく同じ盤面が出ます。 登録は、各パズルの下にある「この問題を共有・難問に登録」から申請できます。"), !items && !err && /*#__PURE__*/React.createElement("span", {
+    className: "text-sm",
+    style: {
+      color: T.muted
+    }
+  }, "読み込み中です…"), err === "offline" && /*#__PURE__*/React.createElement("div", {
+    className: "text-sm p-3 border rounded-sm leading-relaxed",
+    style: {
+      color: T.ink,
+      borderColor: T.warn,
+      background: T.panel
+    }
+  }, "いまオフラインのため、難問ゾーンだけ表示できません。パズル本体は電波がなくてもすべて遊べます。 通信できる場所で開き直すと、最新の難問リストが読み込まれます。"), err === "load" && /*#__PURE__*/React.createElement("div", {
+    className: "text-sm p-3 border rounded-sm leading-relaxed",
+    style: {
+      color: T.muted,
+      borderColor: T.rule,
+      background: T.panel
+    }
+  }, "難問リストがまだありません。公開先に challenges.json を置くと、ここに一覧が出ます。 パソコンでファイルを直接開いている場合は、読み込みが制限されるため表示されません。"), items && items.length === 0 && /*#__PURE__*/React.createElement("span", {
+    className: "text-sm",
+    style: {
+      color: T.muted
+    }
+  }, "まだ登録がありません。第一号をお待ちしています。"), items && LEVELS.map((lv, li) => {
+    const inLv = items.filter(x => Number(x.lv) === li);
+    if (!inLv.length) return null;
+    return /*#__PURE__*/React.createElement("div", {
+      key: lv,
+      className: "flex flex-col gap-2"
+    }, /*#__PURE__*/React.createElement("h2", {
+      className: "font-serif text-base pt-2",
+      style: {
+        color: T.ink
+      }
+    }, lv, " の難問（", inLv.length, "）"), GAMES.filter(g => inLv.some(x => x.p === g.id)).map(g => /*#__PURE__*/React.createElement("div", {
+      key: g.id,
+      className: "flex flex-col gap-1"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "text-xs font-mono",
+      style: {
+        color: T.accent
+      }
+    }, g.title), inLv.filter(x => x.p === g.id).map((x, k) => /*#__PURE__*/React.createElement("button", {
+      key: k,
+      onClick: () => onOpen(x.p, Number(x.lv), Number(x.s)),
+      className: "text-left border rounded-sm p-3 flex items-center gap-3 active:opacity-70",
+      style: {
+        borderColor: T.rule,
+        background: T.panel
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "flex-1"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "block text-sm"
+    }, x.by || "名無し", "さんが難問に指定しました"), x.note && /*#__PURE__*/React.createElement("span", {
+      className: "block text-xs mt-0.5",
+      style: {
+        color: T.muted
+      }
+    }, x.note), /*#__PURE__*/React.createElement("span", {
+      className: "block text-xs mt-0.5 font-mono",
+      style: {
+        color: T.rule
+      }
+    }, g.code, "-", Number(x.lv) + 1, "-", x.s, x.date ? ` / ${x.date}` : "")), /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: T.rule
+      }
+    }, "→"))))));
+  }));
+}
 function App() {
-  const [view, setView] = useState("home");
-  const [level, setLevel] = useState(0);
-  const [seed, setSeed] = useState(0);
+  const start = useMemo(() => readURL(), []);
+  const [view, setView] = useState(start ? start.view : "home");
+  const [level, setLevel] = useState(start ? start.level : 0);
+  const [seed, setSeed] = useState(start ? start.seed : 1);
   const game = GAMES.find(g => g.id === view);
+  const go = (v, lv, sd) => {
+    setView(v);
+    setLevel(lv);
+    setSeed(sd);
+    syncURL(v, lv, sd);
+    try {
+      window.scrollTo(0, 0);
+    } catch (e) {}
+  };
   return /*#__PURE__*/React.createElement("div", {
     className: "min-h-screen w-full",
     style: {
@@ -4507,13 +4817,38 @@ function App() {
     style: {
       color: T.muted
     },
-    onClick: () => setView("home")
+    onClick: () => go("home", level, seed)
   }, "← 一覧へ")), view === "home" && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("p", {
     className: "text-sm leading-relaxed",
     style: {
       color: T.muted
     }
-  }, "出題前にソルバーで解の個数を数え、答えが1通りに定まる問題だけを出します。勘で当たることはなく、手がかりを積み上げれば必ず解けます。 入力は、なぞり塗り・候補メモ・○×表などで手数を減らしてあります。どのパズルにも、盤面の外に仮定を書き留めておける自由メモがついています。"), /*#__PURE__*/React.createElement("div", {
+  }, "出題前にソルバーで解の個数を数え、答えが1通りに定まる問題だけを出します。勘で当たることはなく、手がかりを積み上げれば必ず解けます。 入力は、なぞり塗り・候補メモ・○×表などで手数を減らしてあります。どのパズルにも、盤面の外に仮定を書き留めておける自由メモがついています。 一度開いたあとは電波がなくても遊べます（通信が必要なのは難問ゾーンだけです）。"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => go("zone", 0, 1),
+    className: "text-left border rounded-sm p-3 flex items-center gap-3 active:opacity-70",
+    style: {
+      borderColor: T.accent,
+      background: T.panel
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "font-mono text-xs",
+    style: {
+      color: T.accent
+    }
+  }, "★"), /*#__PURE__*/React.createElement("span", {
+    className: "flex-1"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "block font-serif text-base"
+  }, "難問ゾーン"), /*#__PURE__*/React.createElement("span", {
+    className: "block text-xs mt-0.5",
+    style: {
+      color: T.muted
+    }
+  }, "みんなが手強いと指定した問題を、難易度と部門ごとに")), /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: T.rule
+    }
+  }, "→")), /*#__PURE__*/React.createElement("div", {
     className: "flex flex-col gap-2"
   }, GAMES.map((g, gi) => /*#__PURE__*/React.createElement(React.Fragment, {
     key: g.id
@@ -4523,10 +4858,7 @@ function App() {
       color: T.muted
     }
   }, g.cat), /*#__PURE__*/React.createElement("button", {
-    onClick: () => {
-      setView(g.id);
-      setSeed(s => s + 1);
-    },
+    onClick: () => go(g.id, level, newSeed()),
     className: "text-left border rounded-sm p-3 flex items-center gap-3 active:opacity-70",
     style: {
       borderColor: T.rule,
@@ -4550,7 +4882,9 @@ function App() {
     style: {
       color: T.rule
     }
-  }, "→")))))), game && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+  }, "→")))))), view === "zone" && /*#__PURE__*/React.createElement(Zone, {
+    onOpen: (p, lv, sd) => go(p, lv, sd)
+  }), game && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     className: "font-mono text-xs flex gap-3 flex-wrap border-b pb-2",
     style: {
       color: T.muted,
@@ -4560,7 +4894,7 @@ function App() {
     style: {
       color: T.accent
     }
-  }, game.code, "-", pad(level + 1)), /*#__PURE__*/React.createElement("span", null, game.sizes[level]), /*#__PURE__*/React.createElement(Timer, {
+  }, game.code, "-", level + 1, "-", seed), /*#__PURE__*/React.createElement("span", null, game.sizes[level]), /*#__PURE__*/React.createElement(Timer, {
     key: `t-${game.id}-${level}-${seed}`
   })), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2 flex-wrap items-center"
@@ -4568,19 +4902,22 @@ function App() {
     key: l,
     small: true,
     tone: i === level ? "solid" : "plain",
-    onClick: () => {
-      setLevel(i);
-      setSeed(s => s + 1);
-    }
+    onClick: () => go(game.id, i, newSeed())
   }, l)), /*#__PURE__*/React.createElement(Btn, {
     small: true,
-    onClick: () => setSeed(s => s + 1)
+    onClick: () => go(game.id, level, newSeed())
   }, "新しい問題")), /*#__PURE__*/React.createElement("div", {
     key: `${game.id}-${level}-${seed}`
   }, /*#__PURE__*/React.createElement("h2", {
     className: "font-serif text-lg mb-2"
-  }, game.title), /*#__PURE__*/React.createElement(game.comp, {
-    level: level
+  }, game.title), /*#__PURE__*/React.createElement(GameHost, {
+    game: game,
+    level: level,
+    seed: seed
+  }), /*#__PURE__*/React.createElement(SharePanel, {
+    game: game,
+    level: level,
+    seed: seed
   }), /*#__PURE__*/React.createElement(MemoPad, {
     id: game.id
   }))), /*#__PURE__*/React.createElement("footer", {
@@ -4592,6 +4929,11 @@ function App() {
   }, "完成すると自動で「正解」が出ます。判定はどこが違うかまでは教えません。")));
 }
 ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
+if ("serviceWorker" in navigator && location.protocol.indexOf("http") === 0) {
+  window.addEventListener("load", function () {
+    navigator.serviceWorker.register("sw.js").catch(function () {});
+  });
+}
 </script>
 </body>
 </html>
