@@ -57,6 +57,7 @@ h1,h2{margin:0;font-weight:500}
 .select-none{user-select:none;-webkit-user-select:none}
 .opacity-40{opacity:.4}
 .relative{position:relative}
+.inline-flex{display:inline-flex}
 button:active:not(:disabled).active\:opacity-70{opacity:.7}
 </style>
 </head>
@@ -1420,7 +1421,456 @@ function genFut(n, keepSigns) {
   return null;
 }
 
+/* ================= 生成: 美術館 ================= */
+function akariModel(n, black) {
+  const wid = range(n).map(() => Array(n).fill(-1));
+  const cells = [];
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (!black[r][c]) {
+    wid[r][c] = cells.length;
+    cells.push([r, c]);
+  }
+  const vis = cells.map(() => []);
+  cells.forEach(([r, c], i) => {
+    for (const [dr, dc] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
+      let y = r + dr,
+        x = c + dc;
+      while (y >= 0 && y < n && x >= 0 && x < n && !black[y][x]) {
+        vis[i].push(wid[y][x]);
+        y += dr;
+        x += dc;
+      }
+    }
+  });
+  const maxLit = cells.map((_, i) => Math.max(i, ...vis[i]));
+  return {
+    wid,
+    cells,
+    vis,
+    maxLit
+  };
+}
+function akariSolve(n, black, num, M, cap = 2, want = false) {
+  const {
+    wid,
+    cells,
+    vis,
+    maxLit
+  } = M;
+  const W = cells.length;
+  const nums = [];
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (black[r][c] && num[r][c] >= 0) {
+    const adj = [];
+    for (const [dr, dc] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
+      const y = r + dr,
+        x = c + dc;
+      if (y >= 0 && y < n && x >= 0 && x < n && !black[y][x]) adj.push(wid[y][x]);
+    }
+    nums.push({
+      v: num[r][c],
+      adj
+    });
+  }
+  if (nums.some(nd => nd.v > nd.adj.length)) return want ? null : 0;
+  const finalAt = range(W).map(() => []);
+  cells.forEach((_, i) => finalAt[maxLit[i]].push(i));
+  const st = Array(W).fill(0);
+  let count = 0,
+    first = null;
+  const rec = i => {
+    if (count >= cap) return;
+    if (i === W) {
+      count++;
+      if (want && !first) first = st.slice();
+      return;
+    }
+    for (const v of [1, 0]) {
+      st[i] = v;
+      let ok = true;
+      if (v === 1) for (const j of vis[i]) if (j < i && st[j] === 1) {
+        ok = false;
+        break;
+      }
+      if (ok) for (const nd of nums) {
+        let cnt = 0,
+          und = 0;
+        for (const j of nd.adj) {
+          if (j <= i) {
+            if (st[j] === 1) cnt++;
+          } else und++;
+        }
+        if (cnt > nd.v || cnt + und < nd.v) {
+          ok = false;
+          break;
+        }
+      }
+      if (ok) for (const j of finalAt[i]) if (!(st[j] === 1 || vis[j].some(k => k <= i && st[k] === 1))) {
+        ok = false;
+        break;
+      }
+      if (ok) rec(i + 1);
+      st[i] = 0;
+      if (count >= cap) return;
+    }
+  };
+  rec(0);
+  return want ? first : count;
+}
+function genAkari(n, ratio, keepNums) {
+  for (let t = 0; t < 200; t++) {
+    const black = range(n).map(() => range(n).map(() => Math.random() < ratio));
+    const num = range(n).map(() => Array(n).fill(-1));
+    const M = akariModel(n, black);
+    if (M.cells.length < n * n * 0.6) continue;
+    const sol = akariSolve(n, black, num, M, 1, true);
+    if (!sol) continue;
+    const bs = [];
+    for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (black[r][c]) {
+      bs.push([r, c]);
+      let k = 0;
+      for (const [dr, dc] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
+        const y = r + dr,
+          x = c + dc;
+        if (y >= 0 && y < n && x >= 0 && x < n && !black[y][x] && sol[M.wid[y][x]] === 1) k++;
+      }
+      num[r][c] = k;
+    }
+    if (akariSolve(n, black, num, M) !== 1) continue;
+    let cnt = bs.length;
+    for (const [r, c] of shuffle(bs)) {
+      if (cnt <= keepNums) break;
+      const bak = num[r][c];
+      num[r][c] = -1;
+      if (akariSolve(n, black, num, M) !== 1) num[r][c] = bak;else cnt--;
+    }
+    return {
+      n,
+      black,
+      num,
+      sol
+    };
+  }
+  return null;
+}
+
+/* ================= 生成: テント ================= */
+const adj8 = (r, c, n) => {
+  const o = [];
+  for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
+    if (!a && !b) continue;
+    const y = r + a,
+      x = c + b;
+    if (y >= 0 && y < n && x >= 0 && x < n) o.push([y, x]);
+  }
+  return o;
+};
+const adj4 = (r, c, n) => [[0, 1], [0, -1], [1, 0], [-1, 0]].map(([a, b]) => [r + a, c + b]).filter(([y, x]) => y >= 0 && y < n && x >= 0 && x < n);
+function matchOK(trees, tents) {
+  if (trees.length !== tents.length) return false;
+  const am = tents.map(([r, c]) => trees.map(([y, x], i) => Math.abs(r - y) + Math.abs(c - x) === 1 ? i : -1).filter(i => i >= 0));
+  const mt = Array(trees.length).fill(-1);
+  const tryK = (i, seen) => {
+    for (const j of am[i]) {
+      if (seen[j]) continue;
+      seen[j] = true;
+      if (mt[j] === -1 || tryK(mt[j], seen)) {
+        mt[j] = i;
+        return true;
+      }
+    }
+    return false;
+  };
+  for (let i = 0; i < tents.length; i++) if (!tryK(i, Array(trees.length).fill(false))) return false;
+  return true;
+}
+function tentSolve(n, tree, rowC, colC, cap = 2) {
+  const trees = [];
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (tree[r][c]) trees.push([r, c]);
+  const cand = [];
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (!tree[r][c] && adj4(r, c, n).some(([y, x]) => tree[y][x])) cand.push([r, c]);
+  const chosen = range(n).map(() => Array(n).fill(false));
+  const rc = Array(n).fill(0),
+    cc = Array(n).fill(0);
+  let count = 0;
+  const rec = i => {
+    if (count >= cap) return;
+    if (i === cand.length) {
+      for (let k = 0; k < n; k++) if (rc[k] !== rowC[k] || cc[k] !== colC[k]) return;
+      const tents = [];
+      for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (chosen[r][c]) tents.push([r, c]);
+      if (matchOK(trees, tents)) count++;
+      return;
+    }
+    const [r, c] = cand[i];
+    if (rc[r] < rowC[r] && cc[c] < colC[c] && !adj8(r, c, n).some(([y, x]) => chosen[y][x])) {
+      chosen[r][c] = true;
+      rc[r]++;
+      cc[c]++;
+      rec(i + 1);
+      chosen[r][c] = false;
+      rc[r]--;
+      cc[c]--;
+      if (count >= cap) return;
+    }
+    rec(i + 1);
+  };
+  rec(0);
+  return count;
+}
+function genTents(n, k) {
+  for (let t = 0; t < 400; t++) {
+    const tent = range(n).map(() => Array(n).fill(false));
+    const tree = range(n).map(() => Array(n).fill(false));
+    const tents = [];
+    for (const i of shuffle(range(n * n))) {
+      if (tents.length >= k) break;
+      const r = Math.floor(i / n),
+        c = i % n;
+      if (tent[r][c] || adj8(r, c, n).some(([y, x]) => tent[y][x])) continue;
+      tent[r][c] = true;
+      tents.push([r, c]);
+    }
+    if (tents.length < k) continue;
+    let ok = true;
+    for (const [r, c] of tents) {
+      const opts = shuffle(adj4(r, c, n).filter(([y, x]) => !tent[y][x] && !tree[y][x]));
+      if (!opts.length) {
+        ok = false;
+        break;
+      }
+      tree[opts[0][0]][opts[0][1]] = true;
+    }
+    if (!ok) continue;
+    const rowC = range(n).map(r => tents.filter(([y]) => y === r).length);
+    const colC = range(n).map(c => tents.filter(([, x]) => x === c).length);
+    if (tentSolve(n, tree, rowC, colC) !== 1) continue;
+    return {
+      n,
+      tree,
+      tent,
+      rowC,
+      colC
+    };
+  }
+  return null;
+}
+
+/* ================= 生成: 四角に切れ ================= */
+function shikakuSolve(R, C, num, cap = 2) {
+  const cover = range(R).map(() => Array(C).fill(false));
+  let count = 0;
+  const rec = () => {
+    if (count >= cap) return;
+    let r = -1,
+      c = -1;
+    outer: for (let i = 0; i < R; i++) for (let j = 0; j < C; j++) if (!cover[i][j]) {
+      r = i;
+      c = j;
+      break outer;
+    }
+    if (r === -1) {
+      count++;
+      return;
+    }
+    for (let h = 1; h <= R; h++) for (let w = 1; w <= C; w++) {
+      for (let r0 = Math.max(0, r - h + 1); r0 <= r; r0++) for (let c0 = Math.max(0, c - w + 1); c0 <= c; c0++) {
+        if (r0 + h > R || c0 + w > C) continue;
+        let free = true,
+          cnt = 0,
+          val = 0;
+        for (let i = r0; i < r0 + h && free; i++) for (let j = c0; j < c0 + w; j++) {
+          if (cover[i][j]) {
+            free = false;
+            break;
+          }
+          if (num[i][j] > 0) {
+            cnt++;
+            val = num[i][j];
+          }
+        }
+        if (!free || cnt !== 1 || val !== h * w) continue;
+        for (let i = r0; i < r0 + h; i++) for (let j = c0; j < c0 + w; j++) cover[i][j] = true;
+        rec();
+        for (let i = r0; i < r0 + h; i++) for (let j = c0; j < c0 + w; j++) cover[i][j] = false;
+        if (count >= cap) return;
+      }
+    }
+  };
+  rec();
+  return count;
+}
+function genShikaku(R, C, maxArea) {
+  for (let t = 0; t < 300; t++) {
+    const cover = range(R).map(() => Array(C).fill(false));
+    const rects = [];
+    const build = () => {
+      let r = -1,
+        c = -1;
+      outer: for (let i = 0; i < R; i++) for (let j = 0; j < C; j++) if (!cover[i][j]) {
+        r = i;
+        c = j;
+        break outer;
+      }
+      if (r === -1) return true;
+      const opts = [];
+      for (let h = 1; h <= Math.min(4, R - r); h++) for (let w = 1; w <= Math.min(4, C - c); w++) {
+        if (h * w > maxArea) continue;
+        let free = true;
+        for (let i = r; i < r + h && free; i++) for (let j = c; j < c + w; j++) if (cover[i][j]) {
+          free = false;
+          break;
+        }
+        if (free) opts.push([h, w]);
+      }
+      for (const [h, w] of shuffle(opts)) {
+        for (let i = r; i < r + h; i++) for (let j = c; j < c + w; j++) cover[i][j] = true;
+        rects.push([r, c, h, w]);
+        if (build()) return true;
+        rects.pop();
+        for (let i = r; i < r + h; i++) for (let j = c; j < c + w; j++) cover[i][j] = false;
+      }
+      return false;
+    };
+    if (!build()) continue;
+    if (rects.filter(([,, h, w]) => h * w === 1).length > 3) continue;
+    const num = range(R).map(() => Array(C).fill(0));
+    rects.forEach(([r, c, h, w]) => {
+      num[r + Math.floor(Math.random() * h)][c + Math.floor(Math.random() * w)] = h * w;
+    });
+    if (shikakuSolve(R, C, num) !== 1) continue;
+    return {
+      R,
+      C,
+      num,
+      rects
+    };
+  }
+  return null;
+}
+
+/* ================= 生成: 論理回路 ================= */
+const OPS = {
+  AND: (a, b) => a & b,
+  OR: (a, b) => a | b,
+  XOR: (a, b) => a ^ b,
+  NAND: (a, b) => 1 - (a & b),
+  NOR: (a, b) => 1 - (a | b)
+};
+function genCircuit(k, g) {
+  const IN = "ABCDE".slice(0, k).split("");
+  for (let t = 0; t < 800; t++) {
+    const nodes = [];
+    for (let i = 0; i < g; i++) {
+      const pool = IN.concat(nodes.map((_, j) => "G" + (j + 1)));
+      const op = Object.keys(OPS)[Math.floor(Math.random() * 5)];
+      const a = pool[Math.floor(Math.random() * pool.length)];
+      let b = pool[Math.floor(Math.random() * pool.length)];
+      if (a === b) b = pool[Math.floor(Math.random() * pool.length)];
+      if (a === b) break;
+      nodes.push({
+        name: "G" + (i + 1),
+        op,
+        a,
+        b
+      });
+    }
+    if (nodes.length !== g) continue;
+    const evalAll = bits => {
+      const v = {};
+      IN.forEach((ch, i) => v[ch] = bits[i]);
+      nodes.forEach(nd => v[nd.name] = OPS[nd.op](v[nd.a], v[nd.b]));
+      return v;
+    };
+    const ans = range(k).map(() => Math.random() < 0.5 ? 1 : 0);
+    const target = evalAll(ans);
+    const uniq = rv => {
+      let c = 0;
+      for (let m = 0; m < 1 << k; m++) {
+        const v = evalAll(range(k).map(i => m >> i & 1));
+        if (rv.every(nm => v[nm] === target[nm])) c++;
+      }
+      return c;
+    };
+    let reveal = nodes.map(nd => nd.name);
+    if (uniq(reveal) !== 1) continue;
+    for (const nm of shuffle(reveal.slice())) {
+      const test = reveal.filter(x => x !== nm);
+      if (test.length && uniq(test) === 1) reveal = test;
+    }
+    return {
+      inputs: IN,
+      nodes,
+      reveal,
+      values: target,
+      answer: ans
+    };
+  }
+  return null;
+}
+
+/* ================= 生成: 水差し ================= */
+const JUGSETS = [[[3, 5], 4], [[5, 8], 6], [[4, 9], 6], [[7, 9], 5], [[3, 7], 5], [[6, 10, 15], 8], [[5, 12, 17], 9], [[4, 11, 13], 7], [[3, 8, 13], 6]];
+function genJugs(level) {
+  for (let t = 0; t < 300; t++) {
+    const [caps, target] = JUGSETS[Math.floor(Math.random() * JUGSETS.length)];
+    if (level === 0 && caps.length > 2) continue;
+    if (level === 2 && caps.length < 3) continue;
+    const key = s => s.join(",");
+    const start = caps.map(() => 0);
+    const q = [start];
+    const dist = {
+      [key(start)]: 0
+    };
+    let best = -1;
+    while (q.length) {
+      const s = q.shift();
+      const d = dist[key(s)];
+      if (s.includes(target)) {
+        best = d;
+        break;
+      }
+      const nx = [];
+      for (let i = 0; i < caps.length; i++) {
+        const a = s.slice();
+        a[i] = caps[i];
+        nx.push(a);
+        const b = s.slice();
+        b[i] = 0;
+        nx.push(b);
+        for (let j = 0; j < caps.length; j++) if (i !== j) {
+          const c = s.slice();
+          const mv = Math.min(c[i], caps[j] - c[j]);
+          c[i] -= mv;
+          c[j] += mv;
+          nx.push(c);
+        }
+      }
+      for (const a of nx) if (dist[key(a)] === undefined) {
+        dist[key(a)] = d + 1;
+        q.push(a);
+      }
+    }
+    if (best >= 4) return {
+      caps: caps.slice(),
+      target,
+      min: best
+    };
+  }
+  return {
+    caps: [3, 5],
+    target: 4,
+    min: 6
+  };
+}
+
 /* ================= 共通UI ================= */
+function Timer() {
+  const [sec, setSec] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setSec(x => x + 1), 1000);
+    return () => clearInterval(t);
+  }, []);
+  return /*#__PURE__*/React.createElement("span", null, "経過 ", pad(Math.floor(sec / 60)), ":", pad(sec % 60));
+}
 function Btn({
   children,
   onClick,
@@ -1444,8 +1894,11 @@ function Btn({
   return /*#__PURE__*/React.createElement("button", {
     onClick: onClick,
     disabled: disabled,
-    className: `border rounded-sm ${small ? "px-2 py-1 text-xs" : "px-3 py-2 text-sm"} ${disabled ? "opacity-40" : "active:opacity-70"}`,
-    style: style
+    className: `border rounded-sm ${small ? "px-3 py-2 text-xs" : "px-4 py-2 text-sm"} ${disabled ? "opacity-40" : "active:opacity-70"}`,
+    style: {
+      ...style,
+      minHeight: small ? 38 : 46
+    }
   }, children);
 }
 function Howto({
@@ -1465,7 +1918,8 @@ function Howto({
     style: {
       color: T.ink,
       borderColor: T.rule,
-      background: T.panel
+      background: T.panel,
+      whiteSpace: "pre-line"
     }
   }, children));
 }
@@ -1668,28 +2122,29 @@ function NumPad({
   onInput,
   label = "消す"
 }) {
+  const base = {
+    height: 60,
+    minWidth: 54,
+    background: T.panel,
+    borderColor: T.rule,
+    flex: "1 1 0%"
+  };
   return /*#__PURE__*/React.createElement("div", {
-    className: "flex gap-1 flex-wrap"
+    className: "w-full flex gap-2 flex-wrap"
   }, range(max).map(i => /*#__PURE__*/React.createElement("button", {
     key: i,
     onClick: () => onInput(i + 1),
     className: "border rounded-sm font-serif active:opacity-70",
     style: {
-      width: 44,
-      height: 44,
-      fontSize: 18,
-      background: T.panel,
-      borderColor: T.rule,
+      ...base,
+      fontSize: 24,
       color: T.ink
     }
   }, i + 1)), /*#__PURE__*/React.createElement("button", {
     onClick: () => onInput(0),
     className: "border rounded-sm text-xs active:opacity-70",
     style: {
-      width: 44,
-      height: 44,
-      background: T.panel,
-      borderColor: T.rule,
+      ...base,
       color: T.muted
     }
   }, label));
@@ -1924,6 +2379,7 @@ function Sudoku({
         width: 48,
         height: 48,
         fontSize: 20,
+        boxShadow: isSel ? `inset 0 0 0 3px ${T.accent}` : "none",
         background: isSel ? T.sel : same ? "#EDEFE8" : T.panel,
         color: conflict ? T.warn : isFix ? T.ink : T.accent,
         fontWeight: isFix ? 600 : 400,
@@ -2096,6 +2552,7 @@ function LogicGrid({
     undo,
     reset
   } = useUndo(init);
+  const [mode, setMode] = useState(1);
   const [wrong, setWrong] = useState("idle");
   if (!puz) return /*#__PURE__*/React.createElement("p", {
     className: "text-sm"
@@ -2105,13 +2562,7 @@ function LogicGrid({
     setWrong("idle");
     set(p => {
       const m = p.map(x => x.slice());
-      const cur = (m[r][c] + 1) % 3; // 0空 1○ 2×
-      m[r][c] = cur;
-      if (cur === 1) {
-        const grp = c < half ? [0, half] : [half, cols.length];
-        for (let j = grp[0]; j < grp[1]; j++) if (j !== c && m[r][j] === 0) m[r][j] = 2;
-        for (let i = 0; i < n; i++) if (i !== r && m[i][c] === 0) m[i][c] = 2;
-      }
+      m[r][c] = m[r][c] === mode ? 0 : mode; // 選んだ印を置く／同じ印ならもう一度で消す
       return m;
     });
   };
@@ -2124,10 +2575,20 @@ function LogicGrid({
       d = pick(i, half, cols.length);
     return s === puz.solution.seat[i] - 1 && cols[d] === puz.solution.item[i];
   });
-  const cw = n === 5 ? 30 : 34;
+  const cw = n === 5 ? 40 : 46;
   return /*#__PURE__*/React.createElement("div", {
     className: "flex flex-col gap-3 items-start w-full"
-  }, /*#__PURE__*/React.createElement(Howto, null, n, "人が左から", n, "席に一列で座り、それぞれ違う飲み物を持っています。表のマスをタップすると「空 → ○ → ×」と変わります。 ○を置くと、同じ行・同じ列の空きマスに自動で×が入ります。手がかりから×を潰していけば、残った1つが答えです。"), /*#__PURE__*/React.createElement("ol", {
+  }, /*#__PURE__*/React.createElement(Howto, null, n, "人が左から", n, "席に一列で座り、それぞれ違う飲み物を持っています。下のボタンで「○」か「×」を選び、表のマスをタップすると その印が1タップで入ります。同じ印をもう一度タップすると消えます。手がかりから×を潰していき、 1行・1列に○が1つずつ残るように埋めてください。"), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 items-center flex-wrap"
+  }, /*#__PURE__*/React.createElement(Btn, {
+    small: true,
+    tone: mode === 1 ? "solid" : "plain",
+    onClick: () => setMode(1)
+  }, "○ を置く"), /*#__PURE__*/React.createElement(Btn, {
+    small: true,
+    tone: mode === 2 ? "solid" : "plain",
+    onClick: () => setMode(2)
+  }, "× を置く")), /*#__PURE__*/React.createElement("ol", {
     className: "text-sm flex flex-col gap-1 w-full",
     style: {
       color: T.ink
@@ -2161,7 +2622,7 @@ function LogicGrid({
     className: "flex items-end justify-center pb-1 text-xs",
     style: {
       width: cw,
-      height: 54,
+      height: 58,
       color: T.muted,
       writingMode: c.length > 1 ? "vertical-rl" : "horizontal-tb",
       borderLeft: j === half ? `2px solid ${T.ink}` : "none"
@@ -2240,11 +2701,11 @@ function Skyscraper({
     for (let i = 0; i < n; i++) if (i !== c && vals[r][i] === v || i !== r && vals[i][c] === v) return true;
     return false;
   };
-  const CS = n >= 6 ? 46 : 50;
+  const CS = n >= 6 ? 44 : 50;
   const clueCell = v => /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-center font-mono",
     style: {
-      width: CS,
+      width: 28,
       height: CS,
       fontSize: 13,
       color: T.indigo
@@ -2270,7 +2731,10 @@ function Skyscraper({
   }, clueCell(puz.clues.left[r]), /*#__PURE__*/React.createElement("div", {
     className: "flex",
     style: {
-      border: `2px solid ${T.ink}`
+      borderLeft: `2px solid ${T.ink}`,
+      borderRight: `2px solid ${T.ink}`,
+      borderTop: r === 0 ? `2px solid ${T.ink}` : "none",
+      borderBottom: r === n - 1 ? `2px solid ${T.ink}` : "none"
     }
   }, row.map((v, c) => {
     const isSel = sel[0] === r && sel[1] === c;
@@ -2282,6 +2746,7 @@ function Skyscraper({
         width: CS,
         height: CS,
         fontSize: 19,
+        boxShadow: isSel ? `inset 0 0 0 3px ${T.accent}` : "none",
         background: isSel ? T.sel : T.panel,
         color: bad(r, c) ? T.warn : T.accent,
         borderTop: r === 0 ? "none" : `1px solid ${T.rule}`,
@@ -2937,6 +3402,7 @@ function KenKen({
         width: CS,
         height: CS,
         fontSize: 20,
+        boxShadow: isSel ? `inset 0 0 0 3px ${T.accent}` : "none",
         background: isSel ? T.sel : T.panel,
         color: bad(r, c) ? T.warn : T.accent,
         borderTop: bd(r, c, -1, 0),
@@ -3056,6 +3522,7 @@ function Futoshiki({
         width: CS,
         height: CS,
         fontSize: 20,
+        boxShadow: isSel ? `inset 0 0 0 3px ${T.accent}` : "none",
         background: isSel ? T.sel : T.panel,
         color: bad(r, c) ? T.warn : T.accent,
         border: `1px solid ${T.ink}`
@@ -3119,16 +3586,754 @@ function Futoshiki({
   }));
 }
 
+/* ================= 13. 美術館 ================= */
+function Akari({
+  level
+}) {
+  const n = [6, 7, 8][level];
+  const puz = useMemo(() => {
+    const conf = [[0.22, 8], [0.2, 6], [0.2, 5]][level];
+    return genAkari([6, 7, 8][level], conf[0], conf[1]);
+  }, [level]);
+  const M = useMemo(() => puz ? akariModel(n, puz.black) : null, [puz, n]);
+  const init = useMemo(() => M ? Array(M.cells.length).fill(0) : [], [M]);
+  const {
+    state: st,
+    set,
+    undo,
+    reset
+  } = useUndo(init);
+  const [mode, setMode] = useState(1);
+  const [wrong, setWrong] = useState("idle");
+  if (!puz) return /*#__PURE__*/React.createElement("p", {
+    className: "text-sm"
+  }, "生成に失敗しました。「新しい問題」を押してください。");
+  const lit = M.cells.map((_, i) => st[i] === 1 || M.vis[i].some(j => st[j] === 1));
+  const clash = M.cells.map((_, i) => st[i] === 1 && M.vis[i].some(j => st[j] === 1));
+  const numOK = (r, c) => {
+    if (puz.num[r][c] < 0) return true;
+    let k = 0;
+    for (const [y, x] of adj4(r, c, n)) if (!puz.black[y][x] && st[M.wid[y][x]] === 1) k++;
+    return k === puz.num[r][c];
+  };
+  let numsAll = true;
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (puz.black[r][c] && !numOK(r, c)) numsAll = false;
+  const solved = lit.every(Boolean) && !clash.some(Boolean) && numsAll;
+  const tap = i => {
+    setWrong("idle");
+    set(p => p.map((x, j) => j === i ? x === mode ? 0 : mode : x));
+  };
+  const CS = n >= 8 ? 38 : 44;
+  return /*#__PURE__*/React.createElement("div", {
+    className: "flex flex-col gap-3 items-start"
+  }, /*#__PURE__*/React.createElement(Howto, null, "白いマスに電球を置いて、白いマス全部を照らします。電球は上下左右にまっすぐ光を飛ばし、黒いマスで止まります。 電球どうしが光の線上で出会ってはいけません。黒いマスの数字は、その上下左右に接する電球の数です。 照らされたマスは色が変わるので、残りが一目で分かります。"), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 items-center flex-wrap"
+  }, /*#__PURE__*/React.createElement(Btn, {
+    small: true,
+    tone: mode === 1 ? "solid" : "plain",
+    onClick: () => setMode(1)
+  }, "電球を置く"), /*#__PURE__*/React.createElement(Btn, {
+    small: true,
+    tone: mode === 2 ? "solid" : "plain",
+    onClick: () => setMode(2)
+  }, "× を打つ")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: T.panel,
+      border: `2px solid ${T.ink}`
+    }
+  }, range(n).map(r => /*#__PURE__*/React.createElement("div", {
+    className: "flex",
+    key: r
+  }, range(n).map(c => {
+    const isB = puz.black[r][c];
+    const i = M.wid[r][c];
+    return /*#__PURE__*/React.createElement("button", {
+      key: c,
+      onClick: () => !isB && tap(i),
+      className: "flex items-center justify-center font-mono active:opacity-70",
+      style: {
+        width: CS,
+        height: CS,
+        fontSize: 15,
+        background: isB ? T.ink : lit[i] ? "#EAE6CF" : T.panel,
+        color: isB ? numOK(r, c) ? T.paper : "#E7A9A9" : clash[i] ? T.warn : T.muted,
+        borderTop: r === 0 ? "none" : `1px solid ${T.rule}`,
+        borderLeft: c === 0 ? "none" : `1px solid ${T.rule}`
+      }
+    }, isB ? puz.num[r][c] >= 0 ? puz.num[r][c] : "" : st[i] === 1 ? "◉" : st[i] === 2 ? "×" : "");
+  })))), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 items-center flex-wrap"
+  }, /*#__PURE__*/React.createElement(Btn, {
+    tone: "solid",
+    onClick: () => setWrong(solved ? "idle" : "ng")
+  }, "判定する"), /*#__PURE__*/React.createElement(Btn, {
+    small: true,
+    onClick: undo
+  }, "1手もどす"), /*#__PURE__*/React.createElement(Btn, {
+    small: true,
+    onClick: () => {
+      reset(init);
+      setWrong("idle");
+    }
+  }, "最初から"), /*#__PURE__*/React.createElement(Reveal, {
+    onReveal: () => reset(puz.sol.slice())
+  })), solved ? /*#__PURE__*/React.createElement(Done, {
+    text: "正解。すべてのマスが照らされました。"
+  }) : /*#__PURE__*/React.createElement(Verdict, {
+    state: wrong
+  }));
+}
+
+/* ================= 14. テント ================= */
+function Tents({
+  level
+}) {
+  const n = [6, 7, 8][level];
+  const k = [6, 8, 10][level];
+  const puz = useMemo(() => genTents(n, k), [n, k]);
+  const init = useMemo(() => range(n).map(() => Array(n).fill(0)), [n]);
+  const {
+    state: st,
+    set,
+    undo,
+    reset
+  } = useUndo(init);
+  const [mode, setMode] = useState(1);
+  const [wrong, setWrong] = useState("idle");
+  if (!puz) return /*#__PURE__*/React.createElement("p", {
+    className: "text-sm"
+  }, "生成に失敗しました。「新しい問題」を押してください。");
+  const tents = [];
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (st[r][c] === 1) tents.push([r, c]);
+  const trees = [];
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (puz.tree[r][c]) trees.push([r, c]);
+  const rc = range(n).map(r => tents.filter(([y]) => y === r).length);
+  const cc = range(n).map(c => tents.filter(([, x]) => x === c).length);
+  const clash = (r, c) => st[r][c] === 1 && adj8(r, c, n).some(([y, x]) => st[y][x] === 1);
+  const solved = rc.every((v, i) => v === puz.rowC[i]) && cc.every((v, i) => v === puz.colC[i]) && !tents.some(([r, c]) => clash(r, c)) && matchOK(trees, tents);
+  const tap = (r, c) => {
+    if (puz.tree[r][c]) return;
+    setWrong("idle");
+    set(p => p.map((row, i) => row.map((x, j) => i === r && j === c ? x === mode ? 0 : mode : x)));
+  };
+  const CS = n >= 8 ? 36 : 42;
+  return /*#__PURE__*/React.createElement("div", {
+    className: "flex flex-col gap-3 items-start"
+  }, /*#__PURE__*/React.createElement(Howto, null, "すべての木にテントを1つずつ、上下左右のとなりに張ります。木とテントは1対1で対応し、テントどうしは斜めも含めて隣り合えません。 右と下の数字は、その行・列に張るテントの数です。数が0の行や列は、まとめて×で潰してしまうのが速いです。"), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 items-center flex-wrap"
+  }, /*#__PURE__*/React.createElement(Btn, {
+    small: true,
+    tone: mode === 1 ? "solid" : "plain",
+    onClick: () => setMode(1)
+  }, "テントを張る"), /*#__PURE__*/React.createElement(Btn, {
+    small: true,
+    tone: mode === 2 ? "solid" : "plain",
+    onClick: () => setMode(2)
+  }, "× を打つ")), /*#__PURE__*/React.createElement("div", {
+    className: "overflow-x-auto max-w-full"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "inline-block",
+    style: {
+      background: T.panel
+    }
+  }, range(n).map(r => /*#__PURE__*/React.createElement("div", {
+    className: "flex",
+    key: r
+  }, range(n).map(c => /*#__PURE__*/React.createElement("button", {
+    key: c,
+    onClick: () => tap(r, c),
+    className: "flex items-center justify-center active:opacity-70",
+    style: {
+      width: CS,
+      height: CS,
+      fontSize: 16,
+      background: puz.tree[r][c] ? "#DDE3D9" : T.panel,
+      color: clash(r, c) ? T.warn : puz.tree[r][c] ? T.accent : T.muted,
+      border: `1px solid ${T.rule}`
+    }
+  }, puz.tree[r][c] ? "♣" : st[r][c] === 1 ? "▲" : st[r][c] === 2 ? "×" : "")), /*#__PURE__*/React.createElement("span", {
+    className: "flex items-center justify-center font-mono",
+    style: {
+      width: 26,
+      height: CS,
+      fontSize: 13,
+      color: rc[r] === puz.rowC[r] ? T.rule : T.indigo
+    }
+  }, puz.rowC[r]))), /*#__PURE__*/React.createElement("div", {
+    className: "flex"
+  }, range(n).map(c => /*#__PURE__*/React.createElement("span", {
+    key: c,
+    className: "flex items-center justify-center font-mono",
+    style: {
+      width: CS,
+      height: 26,
+      fontSize: 13,
+      color: cc[c] === puz.colC[c] ? T.rule : T.indigo
+    }
+  }, puz.colC[c]))))), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 items-center flex-wrap"
+  }, /*#__PURE__*/React.createElement(Btn, {
+    tone: "solid",
+    onClick: () => setWrong(solved ? "idle" : "ng")
+  }, "判定する"), /*#__PURE__*/React.createElement(Btn, {
+    small: true,
+    onClick: undo
+  }, "1手もどす"), /*#__PURE__*/React.createElement(Btn, {
+    small: true,
+    onClick: () => {
+      reset(init);
+      setWrong("idle");
+    }
+  }, "最初から"), /*#__PURE__*/React.createElement(Reveal, {
+    onReveal: () => reset(range(n).map(r => range(n).map(c => puz.tent[r][c] ? 1 : 0)))
+  })), solved ? /*#__PURE__*/React.createElement(Done, {
+    text: "正解。すべての木にテントが対応しました。"
+  }) : /*#__PURE__*/React.createElement(Verdict, {
+    state: wrong
+  }));
+}
+
+/* ================= 15. 四角に切れ ================= */
+function Shikaku({
+  level
+}) {
+  const puz = useMemo(() => {
+    const size = [[5, 5, 6], [6, 6, 8], [7, 7, 9]][level];
+    return genShikaku(size[0], size[1], size[2]);
+  }, [level]);
+  const {
+    state: rects,
+    set,
+    undo,
+    reset
+  } = useUndo([]);
+  const [sel, setSel] = useState(null);
+  const [wrong, setWrong] = useState("idle");
+  if (!puz) return /*#__PURE__*/React.createElement("p", {
+    className: "text-sm"
+  }, "生成に失敗しました。「新しい問題」を押してください。");
+  const {
+    R,
+    C,
+    num
+  } = puz;
+  const rid = range(R).map(() => Array(C).fill(-1));
+  rects.forEach((rt, k) => {
+    for (let i = rt[0]; i < rt[0] + rt[2]; i++) for (let j = rt[1]; j < rt[1] + rt[3]; j++) rid[i][j] = k;
+  });
+  const areaOK = rt => {
+    let cnt = 0,
+      val = 0;
+    for (let i = rt[0]; i < rt[0] + rt[2]; i++) for (let j = rt[1]; j < rt[1] + rt[3]; j++) if (num[i][j] > 0) {
+      cnt++;
+      val = num[i][j];
+    }
+    return cnt === 1 && val === rt[2] * rt[3];
+  };
+  const covered = rid.every(row => row.every(v => v >= 0));
+  const solved = covered && rects.every(areaOK);
+  const tap = (r, c) => {
+    setWrong("idle");
+    if (rid[r][c] >= 0) {
+      const k = rid[r][c];
+      set(p => p.filter((_, i) => i !== k));
+      setSel(null);
+      return;
+    }
+    if (!sel) {
+      setSel([r, c]);
+      return;
+    }
+    const r0 = Math.min(sel[0], r),
+      c0 = Math.min(sel[1], c);
+    const h = Math.abs(sel[0] - r) + 1,
+      w = Math.abs(sel[1] - c) + 1;
+    for (let i = r0; i < r0 + h; i++) for (let j = c0; j < c0 + w; j++) if (rid[i][j] >= 0) {
+      setSel([r, c]);
+      return;
+    }
+    set(p => p.concat([[r0, c0, h, w]]));
+    setSel(null);
+  };
+  const CS = R >= 7 ? 42 : 48;
+  const bd = (r, c, dr, dc) => {
+    const y = r + dr,
+      x = c + dc;
+    const me = rid[r][c];
+    if (y < 0 || y >= R || x < 0 || x >= C) return me >= 0 ? `2px solid ${T.accent}` : `2px solid ${T.ink}`;
+    return rid[y][x] === me && me >= 0 ? `1px solid ${T.rule}` : me >= 0 || rid[y][x] >= 0 ? `2px solid ${T.accent}` : `1px solid ${T.rule}`;
+  };
+  return /*#__PURE__*/React.createElement("div", {
+    className: "flex flex-col gap-3 items-start"
+  }, /*#__PURE__*/React.createElement(Howto, null, "盤面を長方形に切り分けます。どの長方形にも数字がちょうど1つ入り、その数字は長方形のマス数（面積）と一致します。 角にしたいマスを2回タップすると長方形ができ、できた長方形をタップすると消えます。数字の約数を考えて、 「縦1×横6か、縦2×横3か」と形を絞っていきます。"), /*#__PURE__*/React.createElement("div", {
+    className: "overflow-x-auto max-w-full"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "inline-block",
+    style: {
+      background: T.panel,
+      padding: 4
+    }
+  }, range(R).map(r => /*#__PURE__*/React.createElement("div", {
+    className: "flex",
+    key: r
+  }, range(C).map(c => {
+    const isSel = sel && sel[0] === r && sel[1] === c;
+    const k = rid[r][c];
+    const okRect = k >= 0 && areaOK(rects[k]);
+    return /*#__PURE__*/React.createElement("button", {
+      key: c,
+      onClick: () => tap(r, c),
+      className: "flex items-center justify-center font-serif active:opacity-70",
+      style: {
+        width: CS,
+        height: CS,
+        fontSize: 18,
+        boxShadow: isSel ? `inset 0 0 0 3px ${T.accent}` : "none",
+        background: isSel ? T.sel : k >= 0 ? okRect ? "#E4EBE2" : "#F0E4E8" : T.panel,
+        color: T.ink,
+        borderTop: bd(r, c, -1, 0),
+        borderBottom: bd(r, c, 1, 0),
+        borderLeft: bd(r, c, 0, -1),
+        borderRight: bd(r, c, 0, 1)
+      }
+    }, num[r][c] > 0 ? num[r][c] : "");
+  }))))), /*#__PURE__*/React.createElement("span", {
+    className: "text-xs",
+    style: {
+      color: T.muted
+    }
+  }, "切り分けた長方形 ", rects.length, " / ", puz.rects.length), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 items-center flex-wrap"
+  }, /*#__PURE__*/React.createElement(Btn, {
+    tone: "solid",
+    onClick: () => setWrong(solved ? "idle" : "ng")
+  }, "判定する"), /*#__PURE__*/React.createElement(Btn, {
+    small: true,
+    onClick: undo
+  }, "1手もどす"), /*#__PURE__*/React.createElement(Btn, {
+    small: true,
+    onClick: () => {
+      reset([]);
+      setSel(null);
+      setWrong("idle");
+    }
+  }, "最初から"), /*#__PURE__*/React.createElement(Reveal, {
+    onReveal: () => {
+      reset(puz.rects.map(x => x.slice()));
+      setSel(null);
+    }
+  })), solved ? /*#__PURE__*/React.createElement(Done, {
+    text: "正解。すべての長方形が数字と一致しました。"
+  }) : /*#__PURE__*/React.createElement(Verdict, {
+    state: wrong
+  }));
+}
+
+/* ================= 16. 論理回路 ================= */
+function Circuit({
+  level
+}) {
+  const puz = useMemo(() => {
+    const conf = [[3, 4], [4, 5], [4, 7]][level];
+    return genCircuit(conf[0], conf[1]);
+  }, [level]);
+  const init = useMemo(() => puz ? puz.inputs.map(() => -1) : [], [puz]);
+  const {
+    state: bits,
+    set,
+    undo,
+    reset
+  } = useUndo(init);
+  const [wrong, setWrong] = useState("idle");
+  if (!puz) return /*#__PURE__*/React.createElement("p", {
+    className: "text-sm"
+  }, "生成に失敗しました。「新しい問題」を押してください。");
+  const solved = puz.answer.every((v, i) => bits[i] === v);
+  const choose = (i, v) => {
+    setWrong("idle");
+    set(p => p.map((x, j) => j === i ? x === v ? -1 : v : x));
+  };
+  return /*#__PURE__*/React.createElement("div", {
+    className: "flex flex-col gap-3 items-start w-full"
+  }, /*#__PURE__*/React.createElement(Howto, null, "0と1だけを扱う計算のパズルです。1を「はい・オン・電気が流れている」、0を「いいえ・オフ・流れていない」と考えてください。 入力", puz.inputs.join("・"), "はそれぞれ0か1のどちらかで、下の式にしたがって次々と値が決まっていきます。 観測された値だけが分かっているので、そこから元の入力を逆算します。", "\n", "\n", "使う5種類の計算は下の表のとおりです。ANDは「両方とも1のときだけ1」、ORは「どちらか1つでも1なら1」、 XORは「2つが違うときだけ1」、NANDとNORはそれぞれANDとORの答えを0と1でひっくり返したものです。", "\n", "\n", "考え方の例です。「G1 = A AND B」で G1 = 1 と分かっているなら、ANDが1になるのは両方1のときだけなので、 AもBも1で確定します。逆に G1 = 0 なら「少なくとも一方は0」までしか言えないので、ここは保留して他の式から攻めます。 このように「答えが1通りに決まる式」から先に埋めていくのがコツです。"), /*#__PURE__*/React.createElement("div", {
+    className: "w-full overflow-x-auto"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "inline-block border rounded-sm font-mono",
+    style: {
+      background: T.panel,
+      borderColor: T.rule,
+      fontSize: 12
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex",
+    style: {
+      borderBottom: `1px solid ${T.rule}`
+    }
+  }, ["a", "b", "AND", "OR", "XOR", "NAND", "NOR"].map((h, i) => /*#__PURE__*/React.createElement("span", {
+    key: h,
+    className: "flex items-center justify-center",
+    style: {
+      width: i < 2 ? 34 : 56,
+      height: 30,
+      color: T.muted,
+      borderLeft: i === 2 ? `2px solid ${T.rule}` : "none"
+    }
+  }, h))), [[0, 0], [0, 1], [1, 0], [1, 1]].map(([a, b]) => /*#__PURE__*/React.createElement("div", {
+    className: "flex",
+    key: `${a}${b}`
+  }, [a, b, a & b, a | b, a ^ b, 1 - (a & b), 1 - (a | b)].map((v, i) => /*#__PURE__*/React.createElement("span", {
+    key: i,
+    className: "flex items-center justify-center",
+    style: {
+      width: i < 2 ? 34 : 56,
+      height: 28,
+      color: i < 2 ? T.muted : T.ink,
+      borderLeft: i === 2 ? `2px solid ${T.rule}` : "none"
+    }
+  }, v)))))), /*#__PURE__*/React.createElement("div", {
+    className: "w-full p-3 border rounded-sm font-mono text-sm flex flex-col gap-1",
+    style: {
+      background: T.panel,
+      borderColor: T.rule
+    }
+  }, puz.nodes.map(nd => /*#__PURE__*/React.createElement("div", {
+    key: nd.name,
+    style: {
+      color: T.ink
+    }
+  }, nd.name, " = ", nd.a, " ", nd.op, " ", nd.b))), /*#__PURE__*/React.createElement("div", {
+    className: "w-full p-3 border rounded-sm font-mono text-sm flex flex-col gap-1",
+    style: {
+      background: T.panel,
+      borderColor: T.accent
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-xs",
+    style: {
+      color: T.muted
+    }
+  }, "観測された値"), puz.reveal.map(nm => /*#__PURE__*/React.createElement("div", {
+    key: nm,
+    style: {
+      color: T.accent
+    }
+  }, nm, " = ", puz.values[nm]))), /*#__PURE__*/React.createElement("div", {
+    className: "w-full flex flex-col gap-2"
+  }, puz.inputs.map((ch, i) => /*#__PURE__*/React.createElement("div", {
+    key: ch,
+    className: "flex gap-2 items-center"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "font-mono",
+    style: {
+      width: 24,
+      color: T.ink
+    }
+  }, ch), [0, 1].map(v => /*#__PURE__*/React.createElement(Btn, {
+    key: v,
+    small: true,
+    tone: bits[i] === v ? "solid" : "plain",
+    onClick: () => choose(i, v)
+  }, v))))), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 items-center flex-wrap"
+  }, /*#__PURE__*/React.createElement(Btn, {
+    tone: "solid",
+    onClick: () => setWrong(solved ? "idle" : "ng")
+  }, "判定する"), /*#__PURE__*/React.createElement(Btn, {
+    small: true,
+    onClick: undo
+  }, "1手もどす"), /*#__PURE__*/React.createElement(Btn, {
+    small: true,
+    onClick: () => {
+      reset(init);
+      setWrong("idle");
+    }
+  }, "最初から"), /*#__PURE__*/React.createElement(Reveal, {
+    onReveal: () => reset(puz.answer.slice())
+  })), solved ? /*#__PURE__*/React.createElement(Done, {
+    text: "正解。入力がすべて確定しました。"
+  }) : /*#__PURE__*/React.createElement(Verdict, {
+    state: wrong
+  }));
+}
+
+/* ================= 17. 水差し ================= */
+function Jugs({
+  level
+}) {
+  const puz = useMemo(() => genJugs(level), [level]);
+  const init = useMemo(() => ({
+    amt: puz.caps.map(() => 0),
+    moves: 0
+  }), [puz]);
+  const {
+    state,
+    set,
+    undo,
+    reset
+  } = useUndo(init);
+  const {
+    amt,
+    moves
+  } = state;
+  const names = ["A", "B", "C"];
+  const solved = amt.includes(puz.target);
+  const act = f => set(p => ({
+    amt: f(p.amt.slice()),
+    moves: p.moves + 1
+  }));
+  return /*#__PURE__*/React.createElement("div", {
+    className: "flex flex-col gap-3 items-start"
+  }, /*#__PURE__*/React.createElement(Howto, null, "目盛りのない容器だけを使って、どれか1つにちょうど", puz.target, "リットルを作ります。できるのは「満水にする」「全部捨てる」 「片方が空になるか、もう片方が満杯になるまで移す」の3種類だけです。最短", puz.min, "手で作れます。"), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-4 items-end"
+  }, puz.caps.map((cap, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    className: "flex flex-col items-center gap-1"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-end justify-center",
+    style: {
+      width: 58,
+      height: 34 + cap * 8,
+      border: `2px solid ${T.ink}`,
+      borderTop: "none",
+      background: T.panel
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "w-full flex items-start justify-center font-mono",
+    style: {
+      height: `${amt[i] / cap * 100}%`,
+      background: amt[i] === puz.target ? T.accent : T.indigo,
+      color: T.panel,
+      fontSize: 12
+    }
+  }, amt[i] > 0 ? amt[i] : "")), /*#__PURE__*/React.createElement("span", {
+    className: "font-mono text-xs",
+    style: {
+      color: T.muted
+    }
+  }, names[i], "：", cap, "L / 今", amt[i], "L")))), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-1 flex-wrap"
+  }, puz.caps.map((cap, i) => /*#__PURE__*/React.createElement(Btn, {
+    key: "f" + i,
+    small: true,
+    onClick: () => act(a => {
+      a[i] = cap;
+      return a;
+    })
+  }, names[i], "を満水")), puz.caps.map((_, i) => /*#__PURE__*/React.createElement(Btn, {
+    key: "e" + i,
+    small: true,
+    onClick: () => act(a => {
+      a[i] = 0;
+      return a;
+    })
+  }, names[i], "を空に"))), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-1 flex-wrap"
+  }, puz.caps.map((_, i) => puz.caps.map((__, j) => i === j ? null : /*#__PURE__*/React.createElement(Btn, {
+    key: `m${i}${j}`,
+    small: true,
+    onClick: () => act(a => {
+      const mv = Math.min(a[i], puz.caps[j] - a[j]);
+      a[i] -= mv;
+      a[j] += mv;
+      return a;
+    })
+  }, names[i], "→", names[j])))), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-4 items-center font-mono text-xs",
+    style: {
+      color: T.muted
+    }
+  }, /*#__PURE__*/React.createElement("span", null, "目標 ", puz.target, "L"), /*#__PURE__*/React.createElement("span", null, "手数 ", pad(moves)), /*#__PURE__*/React.createElement("span", null, "最短 ", pad(puz.min))), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 items-center flex-wrap"
+  }, /*#__PURE__*/React.createElement(Btn, {
+    small: true,
+    onClick: undo
+  }, "1手もどす"), /*#__PURE__*/React.createElement(Btn, {
+    small: true,
+    onClick: () => reset(init)
+  }, "最初から")), solved && /*#__PURE__*/React.createElement(Done, {
+    text: `${puz.target}Lができました。${moves}手（最短${puz.min}手）`
+  }));
+}
+
+/* ================= 18. ハノイの塔 ================= */
+function hanoiMin(n, start) {
+  const enc = st => st.reduce((a, v) => a * 3 + v, 0);
+  const dist = new Map([[enc(start), 0]]);
+  const q = [start];
+  while (q.length) {
+    const st = q.shift();
+    const d = dist.get(enc(st));
+    if (st.every(v => v === 2)) return d;
+    const top = [-1, -1, -1];
+    for (let k = n - 1; k >= 0; k--) top[st[k]] = k;
+    for (let a = 0; a < 3; a++) {
+      if (top[a] < 0) continue;
+      for (let b = 0; b < 3; b++) {
+        if (a === b || top[b] >= 0 && top[b] < top[a]) continue;
+        const nx = st.slice();
+        nx[top[a]] = b;
+        if (!dist.has(enc(nx))) {
+          dist.set(enc(nx), d + 1);
+          q.push(nx);
+        }
+      }
+    }
+  }
+  return null;
+}
+function genHanoiStart(n, scrambled) {
+  if (!scrambled) return Array(n).fill(0);
+  const floor = Math.pow(2, n - 1);
+  for (let t = 0; t < 300; t++) {
+    const st = range(n).map(() => Math.floor(Math.random() * 3));
+    if (st.every(v => v === 2)) continue;
+    if (hanoiMin(n, st) >= floor) return st;
+  }
+  return Array(n).fill(0);
+}
+const pegsFromAssign = (assign, n) => range(3).map(p => range(n).filter(i => assign[i] === p).map(i => i + 1).sort((a, b) => b - a));
+function Hanoi({
+  level
+}) {
+  const n = [3, 4, 5][level];
+  const [scram, setScram] = useState(false);
+  const assign = useMemo(() => genHanoiStart(n, scram), [n, scram]);
+  const init = useMemo(() => ({
+    st: pegsFromAssign(assign, n),
+    moves: 0
+  }), [assign, n]);
+  const {
+    state,
+    set,
+    undo,
+    reset
+  } = useUndo(init);
+  const [sel, setSel] = useState(-1);
+  useEffect(() => {
+    reset(init);
+    setSel(-1);
+  }, [init]);
+  const min = useMemo(() => hanoiMin(n, assign), [n, assign]);
+  const {
+    st,
+    moves
+  } = state;
+  const solved = st[2].length === n;
+  const canMove = (a, b) => {
+    if (a === b || !st[a].length) return false;
+    const d = st[a][st[a].length - 1];
+    const t = st[b][st[b].length - 1];
+    return t === undefined || d < t;
+  };
+  const tap = p => {
+    if (sel === -1) {
+      if (st[p].length) setSel(p);
+      return;
+    }
+    if (sel === p) {
+      setSel(-1);
+      return;
+    }
+    if (canMove(sel, p)) {
+      const d = st[sel][st[sel].length - 1];
+      set(q => ({
+        st: q.st.map((x, i) => i === sel ? x.slice(0, -1) : i === p ? x.concat([d]) : x),
+        moves: q.moves + 1
+      }));
+      setSel(-1);
+    } else setSel(st[p].length ? p : -1);
+  };
+  const W = 100;
+  const H = 40 + n * 24;
+  return /*#__PURE__*/React.createElement("div", {
+    className: "flex flex-col gap-3 items-start"
+  }, /*#__PURE__*/React.createElement(Howto, null, "円盤", n, "枚をすべて右端の棒へ集めます。動かせるのは各棒のいちばん上の1枚だけで、大きい円盤を小さい円盤の上に置くことはできません。 棒をタップして持ち上げ、置きたい棒をタップします。この配置からの最短は", min, "手です。", "\n", "\n", "「左に全部」は教科書どおりの形で、", n - 1, "枚を真ん中へ逃がしてから最大の1枚を動かし、また", n - 1, "枚を運ぶ、という入れ子の手順になります。 「バラバラ」は途中から始まる形です。まず「いちばん大きい円盤を最後にどこへ置くべきか」を決め、その邪魔になっている円盤から順に どかす場所を逆算していくと、最短手が見えてきます。"), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 items-center flex-wrap"
+  }, /*#__PURE__*/React.createElement(Btn, {
+    small: true,
+    tone: !scram ? "solid" : "plain",
+    onClick: () => setScram(false)
+  }, "左に全部"), /*#__PURE__*/React.createElement(Btn, {
+    small: true,
+    tone: scram ? "solid" : "plain",
+    onClick: () => setScram(true)
+  }, "バラバラ")), /*#__PURE__*/React.createElement("div", {
+    className: "overflow-x-auto max-w-full"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "inline-flex gap-2 items-end",
+    style: {
+      background: T.panel,
+      border: `1px solid ${T.rule}`,
+      padding: 8
+    }
+  }, st.map((peg, p) => /*#__PURE__*/React.createElement("button", {
+    key: p,
+    onClick: () => tap(p),
+    className: "relative flex flex-col justify-end items-center active:opacity-70",
+    style: {
+      width: W,
+      height: H,
+      background: sel === p ? T.sel : "transparent",
+      borderBottom: `4px solid ${p === 2 ? T.accent : T.ink}`
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      position: "absolute",
+      left: "50%",
+      bottom: 0,
+      marginLeft: -3,
+      width: 6,
+      height: H - 6,
+      background: T.rule,
+      borderRadius: 3
+    }
+  }), peg.slice().reverse().map((d, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    className: "text-center font-mono",
+    style: {
+      position: "relative",
+      width: Math.round((W - 10) * (0.34 + 0.66 * d / n)),
+      height: 20,
+      margin: "2px 0",
+      background: sel === p && i === 0 ? T.accent : T.indigo,
+      borderRadius: 3,
+      color: T.panel,
+      fontSize: 11,
+      lineHeight: "20px"
+    }
+  }, d)))))), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-4 items-center font-mono text-xs",
+    style: {
+      color: T.muted
+    }
+  }, /*#__PURE__*/React.createElement("span", null, "手数 ", pad(moves)), /*#__PURE__*/React.createElement("span", null, "最短 ", pad(min)), /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: T.accent
+    }
+  }, "右端に集める")), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 items-center flex-wrap"
+  }, /*#__PURE__*/React.createElement(Btn, {
+    small: true,
+    onClick: () => {
+      undo();
+      setSel(-1);
+    }
+  }, "1手もどす"), /*#__PURE__*/React.createElement(Btn, {
+    small: true,
+    onClick: () => {
+      reset(init);
+      setSel(-1);
+    }
+  }, "最初から")), solved && /*#__PURE__*/React.createElement(Done, {
+    text: moves === min ? `最短の${min}手で完成。文句なしです。` : `完成。${moves}手（最短${min}手）`
+  }));
+}
+
 /* ================= 一覧・外枠 ================= */
+const CATS = ["数字をならべる", "マスを塗る・置く", "ことばで推理する", "手順を見つける"];
 const GAMES = [{
-  id: "nonogram",
-  code: "NON",
-  title: "お絵かきロジック",
-  type: "行と列の数字から塗りを確定させる",
-  comp: Nonogram,
-  sizes: ["5×5", "7×7", "9×9"]
-}, {
   id: "sudoku",
+  cat: CATS[0],
   code: "NUM",
   title: "ナンプレ 6×6",
   type: "残った候補を1つに絞り込む",
@@ -3136,6 +4341,7 @@ const GAMES = [{
   sizes: ["ヒント20", "ヒント16", "ヒント12"]
 }, {
   id: "kenken",
+  cat: CATS[0],
   code: "KEN",
   title: "ケンケン",
   type: "四則の答えから数字を割り出す",
@@ -3143,6 +4349,7 @@ const GAMES = [{
   sizes: ["4×4", "5×5", "6×6"]
 }, {
   id: "futoshiki",
+  cat: CATS[0],
   code: "INQ",
   title: "不等式ナンプレ",
   type: "大小関係だけで数字を並べる",
@@ -3150,27 +4357,71 @@ const GAMES = [{
   sizes: ["4×4", "5×5", "6×6"]
 }, {
   id: "sky",
+  cat: CATS[0],
   code: "BLD",
   title: "ビルディング",
   type: "見える本数から高さを割り出す",
   comp: Skyscraper,
   sizes: ["4×4", "5×5", "6×6"]
 }, {
-  id: "binary",
-  code: "BIN",
-  title: "バイナリーパズル",
-  type: "0と1の並びの制約を突き詰める",
-  comp: BinaryPuzzle,
-  sizes: ["6×6", "6×6・難", "8×8"]
+  id: "crypt",
+  cat: CATS[0],
+  code: "CRY",
+  title: "覆面算",
+  type: "桁上がりから数字を特定する",
+  comp: Cryptarithm,
+  sizes: ["3〜4文字", "4〜5文字", "5〜6文字"]
+}, {
+  id: "nonogram",
+  cat: CATS[1],
+  code: "NON",
+  title: "お絵かきロジック",
+  type: "行と列の数字から塗りを確定させる",
+  comp: Nonogram,
+  sizes: ["5×5", "7×7", "9×9"]
+}, {
+  id: "akari",
+  cat: CATS[1],
+  code: "LGH",
+  title: "美術館",
+  type: "光の届く範囲から電球を置く",
+  comp: Akari,
+  sizes: ["6×6", "7×7", "8×8"]
 }, {
   id: "mine",
+  cat: CATS[1],
   code: "BMB",
   title: "爆弾さがし",
   type: "周囲の数字から位置を確定させる",
   comp: MineFind,
   sizes: ["5×5・5個", "6×6・8個", "7×7・12個"]
 }, {
+  id: "tents",
+  cat: CATS[1],
+  code: "TNT",
+  title: "テント",
+  type: "木とテントを1対1で対応させる",
+  comp: Tents,
+  sizes: ["6×6・6張", "7×7・8張", "8×8・10張"]
+}, {
+  id: "binary",
+  cat: CATS[1],
+  code: "BIN",
+  title: "バイナリーパズル",
+  type: "0と1の並びの制約を突き詰める",
+  comp: BinaryPuzzle,
+  sizes: ["6×6", "6×6・難", "8×8"]
+}, {
+  id: "shikaku",
+  cat: CATS[1],
+  code: "RCT",
+  title: "四角に切れ",
+  type: "面積の約数から長方形を決める",
+  comp: Shikaku,
+  sizes: ["5×5", "6×6", "7×7"]
+}, {
   id: "dominosa",
+  cat: CATS[1],
   code: "DOM",
   title: "ドミノ探し",
   type: "重複しない組み合わせで区切る",
@@ -3178,6 +4429,7 @@ const GAMES = [{
   sizes: ["0〜3・10枚", "0〜4・15枚", "0〜5・21枚"]
 }, {
   id: "logic",
+  cat: CATS[2],
   code: "SEA",
   title: "席替え推理",
   type: "○×表で条件を消していく",
@@ -3185,39 +4437,51 @@ const GAMES = [{
   sizes: ["4人", "4人・難", "5人"]
 }, {
   id: "knights",
+  cat: CATS[2],
   code: "TRU",
   title: "正直者さがし",
   type: "発言の矛盾から正体を暴く",
   comp: Knights,
   sizes: ["4人", "5人", "6人"]
 }, {
-  id: "crypt",
-  code: "CRY",
-  title: "覆面算",
-  type: "桁上がりから数字を特定する",
-  comp: Cryptarithm,
-  sizes: ["3〜4文字", "4〜5文字", "5〜6文字"]
+  id: "circuit",
+  cat: CATS[2],
+  code: "CIR",
+  title: "論理回路",
+  type: "出力から入力を逆算する",
+  comp: Circuit,
+  sizes: ["入力3・4段", "入力4・5段", "入力4・7段"]
 }, {
   id: "lights",
+  cat: CATS[3],
   code: "LGT",
   title: "ライツアウト",
   type: "押す組み合わせを逆算する",
   comp: Lights,
   sizes: ["4手", "7手", "9手前後"]
+}, {
+  id: "hanoi",
+  cat: CATS[3],
+  code: "HAN",
+  title: "ハノイの塔",
+  type: "配置を読んで最短手順を組む",
+  comp: Hanoi,
+  sizes: ["3枚", "4枚", "5枚"]
+}, {
+  id: "jugs",
+  cat: CATS[3],
+  code: "JUG",
+  title: "水差し",
+  type: "手順を組み立てて目標量を作る",
+  comp: Jugs,
+  sizes: ["2つの容器", "2つの容器・難", "3つの容器"]
 }];
 const LEVELS = ["やさしい", "ふつう", "むずかしい"];
 function App() {
   const [view, setView] = useState("home");
   const [level, setLevel] = useState(0);
   const [seed, setSeed] = useState(0);
-  const [sec, setSec] = useState(0);
   const game = GAMES.find(g => g.id === view);
-  useEffect(() => {
-    setSec(0);
-    if (view === "home") return;
-    const t = setInterval(() => setSec(s => s + 1), 1000);
-    return () => clearInterval(t);
-  }, [view, level, seed]);
   return /*#__PURE__*/React.createElement("div", {
     className: "min-h-screen w-full",
     style: {
@@ -3238,7 +4502,7 @@ function App() {
     style: {
       color: T.muted
     }
-  }, "全12種 / 解は1通り") : /*#__PURE__*/React.createElement("button", {
+  }, "全18種") : /*#__PURE__*/React.createElement("button", {
     className: "text-xs",
     style: {
       color: T.muted
@@ -3251,8 +4515,14 @@ function App() {
     }
   }, "出題前にソルバーで解の個数を数え、答えが1通りに定まる問題だけを出します。勘で当たることはなく、手がかりを積み上げれば必ず解けます。 入力は、なぞり塗り・候補メモ・○×表などで手数を減らしてあります。どのパズルにも、盤面の外に仮定を書き留めておける自由メモがついています。"), /*#__PURE__*/React.createElement("div", {
     className: "flex flex-col gap-2"
-  }, GAMES.map(g => /*#__PURE__*/React.createElement("button", {
-    key: g.id,
+  }, GAMES.map((g, gi) => /*#__PURE__*/React.createElement(React.Fragment, {
+    key: g.id
+  }, (gi === 0 || GAMES[gi - 1].cat !== g.cat) && /*#__PURE__*/React.createElement("div", {
+    className: "font-serif text-sm pt-3 pb-1",
+    style: {
+      color: T.muted
+    }
+  }, g.cat), /*#__PURE__*/React.createElement("button", {
     onClick: () => {
       setView(g.id);
       setSeed(s => s + 1);
@@ -3280,7 +4550,7 @@ function App() {
     style: {
       color: T.rule
     }
-  }, "→"))))), game && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+  }, "→")))))), game && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     className: "font-mono text-xs flex gap-3 flex-wrap border-b pb-2",
     style: {
       color: T.muted,
@@ -3290,7 +4560,9 @@ function App() {
     style: {
       color: T.accent
     }
-  }, game.code, "-", pad(level + 1)), /*#__PURE__*/React.createElement("span", null, game.sizes[level]), /*#__PURE__*/React.createElement("span", null, "経過 ", pad(Math.floor(sec / 60)), ":", pad(sec % 60))), /*#__PURE__*/React.createElement("div", {
+  }, game.code, "-", pad(level + 1)), /*#__PURE__*/React.createElement("span", null, game.sizes[level]), /*#__PURE__*/React.createElement(Timer, {
+    key: `t-${game.id}-${level}-${seed}`
+  })), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2 flex-wrap items-center"
   }, LEVELS.map((l, i) => /*#__PURE__*/React.createElement(Btn, {
     key: l,
